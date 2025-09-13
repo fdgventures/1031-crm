@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 export default function Header() {
@@ -13,11 +14,19 @@ export default function Header() {
     };
     id?: string;
   } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    checkUser();
+    // Get initial session
+    const getInitialSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    };
+
+    getInitialSession();
 
     // Listen for auth changes
     const {
@@ -31,28 +40,6 @@ export default function Header() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkUser = async () => {
-    try {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError) {
-        console.log("❌ Authentication error:", authError);
-      } else {
-        console.log("👤 User:", user ? "Authorized" : "Not authorized");
-      }
-
-      setUser(user);
-      setIsLoading(false);
-    } catch (err) {
-      console.error("💥 Critical error:", err);
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setIsLoading(false);
-    }
-  };
-
   const signOut = async () => {
     try {
       console.log("🚪 Signing out...");
@@ -61,11 +48,6 @@ export default function Header() {
       console.log("✅ Sign out successful");
     } catch (err) {
       console.error("❌ Sign out error:", err);
-      setError(
-        `Sign out error: ${
-          err instanceof Error ? err.message : "Unknown error"
-        }`
-      );
     }
   };
   return (
@@ -78,40 +60,49 @@ export default function Header() {
             </h1>
           </div>
           <nav className="hidden md:flex space-x-8">
-            <a href="/profiles" className="text-gray-500 hover:text-gray-900">
+            <Link
+              href="/profiles"
+              className="text-gray-500 hover:text-gray-900"
+            >
               Profiles
-            </a>
-            <a href="/exchanges" className="text-gray-500 hover:text-gray-900">
+            </Link>
+            <Link
+              href="/exchanges"
+              className="text-gray-500 hover:text-gray-900"
+            >
               Exchanges
-            </a>
-            <a
+            </Link>
+            <Link
               href="/transactions"
               className="text-gray-500 hover:text-gray-900"
             >
               Transactions
-            </a>
-            <a
+            </Link>
+            <Link
               href="/business-cards"
               className="text-gray-500 hover:text-gray-900"
             >
               Business Cards
-            </a>
-            <a href="/properties" className="text-gray-500 hover:text-gray-900">
+            </Link>
+            <Link
+              href="/properties"
+              className="text-gray-500 hover:text-gray-900"
+            >
               Properties
-            </a>
-            <a
+            </Link>
+            <Link
               href="/tax-accounts"
               className="text-gray-500 hover:text-gray-900"
             >
               Tax Accounts
-            </a>
-            <a href="/eat" className="text-gray-500 hover:text-gray-900">
+            </Link>
+            <Link href="/eat" className="text-gray-500 hover:text-gray-900">
               EAT
-            </a>
+            </Link>
           </nav>
-          <div className="flex items-center space-x-4 w-64 justify-end transition-all duration-200">
+          <div className="flex items-center space-x-4 w-64 justify-end">
             {isLoading ? (
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 w-full justify-end">
                 <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse"></div>
                 <div className="hidden md:block">
                   <div className="w-24 h-4 bg-gray-200 rounded animate-pulse mb-1"></div>
@@ -145,12 +136,12 @@ export default function Header() {
                 </button>
               </div>
             ) : (
-              <a
+              <Link
                 href="/auth/signin"
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 inline-block"
               >
                 Sign In
-              </a>
+              </Link>
             )}
           </div>
         </div>
