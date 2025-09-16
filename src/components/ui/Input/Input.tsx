@@ -32,7 +32,9 @@ const Input: React.FC<InputProps> = ({
   const inputClasses = `${baseClasses} ${sizeClasses[size]} ${errorClasses} ${className}`;
 
   const inputId =
-    id || name || `input-${Math.random().toString(36).substr(2, 9)}`;
+    id ||
+    name ||
+    `input-${type}-${label?.replace(/\s+/g, "-").toLowerCase() || "field"}`;
 
   return (
     <div className="space-y-1">
