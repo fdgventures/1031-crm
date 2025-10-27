@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import HeaderUser from "./HeaderUser";
 
 export default function Header() {
   return (
@@ -55,14 +56,7 @@ export default function Header() {
               EAT
             </Link>
           </nav>
-          <div className="flex items-center">
-            <Link
-              href="/admin/signin"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm"
-            >
-              Admin
-            </Link>
-          </div>
+          <HeaderUser />
         </div>
       </div>
     </header>

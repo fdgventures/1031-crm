@@ -15,8 +15,7 @@ export default function AdminRegisterPage() {
   const [resendLoading, setResendLoading] = useState(false);
 
   useEffect(() => {
-    // Проверяем, есть ли уже Platform Super Admin
-    checkExistingAdmin();
+    // Не проверяем при загрузке, так как workspace_owner может регистрироваться всегда
   }, []);
 
   const checkExistingAdmin = async () => {
@@ -28,6 +27,8 @@ export default function AdminRegisterPage() {
         .single();
 
       if (data && !error) {
+        // Разрешаем регистрацию только для workspace_owner
+        // или если нет других админов
         setError(
           "Platform Super Admin already exists. Please sign in instead."
         );
@@ -58,11 +59,16 @@ export default function AdminRegisterPage() {
     setSuccess(null);
 
     try {
-      // Проверяем еще раз, есть ли уже админ
-      const adminExists = await checkExistingAdmin();
-      if (adminExists) {
-        setIsLoading(false);
-        return;
+      // Проверяем, является ли это регистрация workspace_owner
+      const isWorkspaceOwner = email === "fdgventures@gmail.com";
+
+      if (!isWorkspaceOwner) {
+        // Проверяем еще раз, есть ли уже админ (только для обычных пользователей)
+        const adminExists = await checkExistingAdmin();
+        if (adminExists) {
+          setIsLoading(false);
+          return;
+        }
       }
 
       // Регистрируем пользователя через Supabase Auth
@@ -84,13 +90,20 @@ export default function AdminRegisterPage() {
         return;
       }
 
-      // Создаем профиль пользователя с ролью Platform Super Admin
+      // Определяем роль в зависимости от email
+      const isWorkspaceOwner = authData.user.email === "fdgventures@gmail.com";
+      const roleType = isWorkspaceOwner
+        ? "workspace_owner"
+        : "platform_super_admin";
+
+      // Создаем профиль пользователя с нужной ролью
       const { error: profileError } = await supabase
         .from("user_profiles")
         .insert({
           id: authData.user.id,
           email: authData.user.email,
           role: "platform_super_admin",
+          role_type: roleType,
           is_verified: false,
         });
 

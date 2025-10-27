@@ -21,11 +21,16 @@ export default function AdminSignInPage() {
         // Проверяем роль пользователя
         const { data: profile } = await supabase
           .from("user_profiles")
-          .select("role")
+          .select("role_type")
           .eq("id", user.id)
           .single();
 
-        if (profile?.role === "platform_super_admin") {
+        if (
+          profile?.role_type &&
+          ["workspace_owner", "platform_super_admin", "admin"].includes(
+            profile.role_type
+          )
+        ) {
           router.push("/admin/dashboard");
         }
       }
@@ -35,8 +40,8 @@ export default function AdminSignInPage() {
   }, [router]);
 
   useEffect(() => {
-    // Проверяем, есть ли уже авторизованный пользователь
-    checkCurrentUser();
+    // Не делаем автоматический редирект - показываем форму всегда
+    // checkCurrentUser();
   }, [checkCurrentUser]);
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -71,7 +76,7 @@ export default function AdminSignInPage() {
       console.log("Checking user profile...");
       const { data: profile, error: profileError } = await supabase
         .from("user_profiles")
-        .select("role")
+        .select("role, role_type")
         .eq("id", data.user.id)
         .single();
 
@@ -80,15 +85,6 @@ export default function AdminSignInPage() {
       if (profileError) {
         console.log("Profile error:", profileError);
         setError(`Profile error: ${profileError.message}`);
-        return;
-      }
-
-      if (profile?.role !== "platform_super_admin") {
-        console.log("Access denied - wrong role:", profile?.role);
-        setError(
-          "Access denied. Only Platform Super Admin can access this page."
-        );
-        await supabase.auth.signOut();
         return;
       }
 

@@ -17,3 +17,10 @@ export default function EATViewPage({ params }: { params: { id: string } }) {
 
 
 
+
+
+
+
+
+
+
