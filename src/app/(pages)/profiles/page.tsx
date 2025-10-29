@@ -12,18 +12,27 @@ interface Profile {
   last_name: string;
   email?: string | null;
   user_id?: string | null;
+  avatar_url?: string | null;
+  created_at: string;
+}
+
+interface Entity {
+  id: number;
+  name: string;
+  email?: string | null;
   created_at: string;
 }
 
 export default function ProfilesPage() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [entities, setEntities] = useState<Entity[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [activeTab, setActiveTab] = useState<"profiles" | "entities">("profiles");
   const [formData, setFormData] = useState({
-    first_name: "",
-    last_name: "",
+    name: "",
     email: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -60,20 +69,38 @@ export default function ProfilesPage() {
 
   const loadProfiles = async () => {
     try {
-      const { data, error } = await supabase
-        .from("profile")
-        .select("*")
-        .order("created_at", { ascending: false });
+      if (activeTab === "entities") {
+        const { data, error } = await supabase
+          .from("entities")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setProfiles(data || []);
+        if (error) throw error;
+        setEntities(data || []);
+      } else {
+        // Load individual profiles only (exclude entities)
+        const { data, error } = await supabase
+          .from("profile")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        setProfiles(data || []);
+      }
     } catch (err) {
-      console.error("Failed to load profiles:", err);
-      setError("Failed to load profiles");
+      console.error("Failed to load data:", err);
+      setError(`Failed to load ${activeTab === "entities" ? "entities" : "profiles"}`);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!loading) {
+      loadProfiles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const handleCreateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,24 +108,38 @@ export default function ProfilesPage() {
     setSuccess(null);
 
     try {
-      const { data, error } = await supabase
-        .from("profile")
-        .insert([formData])
-        .select()
-        .single();
+      if (activeTab === "entities") {
+        // Create entity in entities table
+        const insertData: any = {
+          name: formData.name,
+        };
 
-      if (error) throw error;
+        if (formData.email) {
+          insertData.email = formData.email;
+        }
 
-      setSuccess("Profile created successfully!");
+        const { data, error } = await supabase
+          .from("entities")
+          .insert([insertData])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setSuccess("Entity created successfully!");
+      } else {
+        // Create individual profile (this part can be extended later if needed)
+        throw new Error("Creating individual profiles from this page is not yet implemented");
+      }
+
       setShowCreateForm(false);
       setFormData({
-        first_name: "",
-        last_name: "",
+        name: "",
         email: "",
       });
       await loadProfiles();
     } catch (err: any) {
-      setError(err.message || "Failed to create profile");
+      setError(err.message || `Failed to create ${activeTab === "entities" ? "entity" : "profile"}`);
     }
   };
 
@@ -117,13 +158,38 @@ export default function ProfilesPage() {
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Profiles</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Profiles</h1>
+            {/* Tabs for switching between Profiles and Entities */}
+            <div className="mt-4 flex space-x-1 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab("profiles")}
+                className={`px-4 py-2 text-sm font-medium ${
+                  activeTab === "profiles"
+                    ? "border-b-2 border-blue-600 text-blue-600"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Individual Profiles
+              </button>
+              <button
+                onClick={() => setActiveTab("entities")}
+                className={`px-4 py-2 text-sm font-medium ${
+                  activeTab === "entities"
+                    ? "border-b-2 border-blue-600 text-blue-600"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Entities
+              </button>
+            </div>
+          </div>
           {isAdmin && (
             <Button
               onClick={() => setShowCreateForm(!showCreateForm)}
               variant="primary"
             >
-              {showCreateForm ? "Cancel" : "+ Create Profile"}
+              {showCreateForm ? "Cancel" : `+ Create ${activeTab === "entities" ? "Entity" : "Profile"}`}
             </Button>
           )}
         </div>
@@ -142,26 +208,19 @@ export default function ProfilesPage() {
 
         {showCreateForm && (
           <div className="bg-white shadow rounded-lg p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">Create New Profile</h2>
+            <h2 className="text-xl font-semibold mb-4">
+              Create New {activeTab === "entities" ? "Entity" : "Profile"}
+            </h2>
             <form onSubmit={handleCreateProfile}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
-                  label="First Name"
-                  value={formData.first_name}
+                  label={activeTab === "entities" ? "Company Name *" : "Name *"}
+                  value={formData.name}
                   onChange={(e) =>
-                    setFormData({ ...formData, first_name: e.target.value })
+                    setFormData({ ...formData, name: e.target.value })
                   }
                   required
-                  placeholder="John"
-                />
-                <Input
-                  label="Last Name"
-                  value={formData.last_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, last_name: e.target.value })
-                  }
-                  required
-                  placeholder="Doe"
+                  placeholder={activeTab === "entities" ? "Company Name" : "Name"}
                 />
                 <Input
                   label="Email"
@@ -170,12 +229,12 @@ export default function ProfilesPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, email: e.target.value })
                   }
-                  placeholder="john@example.com"
+                  placeholder="email@example.com"
                 />
               </div>
               <div className="mt-6">
                 <Button type="submit" variant="primary">
-                  Create Profile
+                  Create {activeTab === "entities" ? "Entity" : "Profile"}
                 </Button>
               </div>
             </form>
@@ -202,52 +261,108 @@ export default function ProfilesPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {profiles.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="px-6 py-8 text-center text-gray-500"
-                    >
-                      No profiles found
-                    </td>
-                  </tr>
-                ) : (
-                  profiles.map((profile) => (
-                    <tr
-                      key={profile.id}
-                      className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => router.push(`/profiles/${profile.id}`)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                            <span className="text-blue-600 font-medium">
-                              {profile.first_name.charAt(0)}
-                              {profile.last_name.charAt(0)}
-                            </span>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
-                              {profile.first_name} {profile.last_name}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
-                          {profile.email || "—"}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
-                          {profile.user_id || "—"}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(profile.created_at).toLocaleDateString()}
+                {activeTab === "entities" ? (
+                  entities.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-6 py-8 text-center text-gray-500"
+                      >
+                        No entities found
                       </td>
                     </tr>
-                  ))
+                  ) : (
+                    entities.map((entity) => (
+                      <tr
+                        key={entity.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => router.push(`/entities/${entity.id}`)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
+                              <span className="text-blue-600 font-medium">
+                                {entity.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">
+                                {entity.name}
+                              </div>
+                              <div className="text-xs text-gray-500">Entity</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">
+                            {entity.email || "—"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">—</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(entity.created_at).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))
+                  )
+                ) : (
+                  profiles.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-6 py-8 text-center text-gray-500"
+                      >
+                        No profiles found
+                      </td>
+                    </tr>
+                  ) : (
+                    profiles.map((profile) => (
+                      <tr
+                        key={profile.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => router.push(`/profiles/${profile.id}`)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
+                              {profile.avatar_url ? (
+                                <img
+                                  src={profile.avatar_url}
+                                  alt={`${profile.first_name} ${profile.last_name}`}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-blue-600 font-medium">
+                                  {profile.first_name.charAt(0)}
+                                  {profile.last_name.charAt(0)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">
+                                {profile.first_name} {profile.last_name && profile.last_name.trim() !== "" ? profile.last_name : ""}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">
+                            {profile.email || "—"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">
+                            {profile.user_id || "—"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(profile.created_at).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))
+                  )
                 )}
               </tbody>
             </table>

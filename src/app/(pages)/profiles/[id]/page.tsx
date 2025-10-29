@@ -294,6 +294,37 @@ export default function ProfileViewPage({
 
       if (taxAccountError) throw taxAccountError;
 
+      // Generate account_number for tax account
+      // Format: INV + first 3 letters of last name (uppercase) + sequential number for profiles
+      const { data: profileData, error: profileError } = await supabase
+        .from("profile")
+        .select("last_name")
+        .eq("id", resolvedParams.id)
+        .single();
+
+      if (!profileError && profileData) {
+        // Get count of profile tax accounts for sequential number
+        const { count, error: countError } = await supabase
+          .from("tax_accounts")
+          .select("*", { count: "exact", head: true })
+          .not("profile_id", "is", null);
+
+        if (!countError) {
+          const sequenceNumber = ((count || 0) + 1).toString().padStart(3, "0");
+          const lastNamePrefix = (profileData?.last_name || "XXX")
+            .substring(0, 3)
+            .toUpperCase()
+            .padEnd(3, "X");
+          const accountNumber = `INV${lastNamePrefix}${sequenceNumber}`;
+
+          // Update tax account with account_number
+          await supabase
+            .from("tax_accounts")
+            .update({ account_number: accountNumber })
+            .eq("id", taxAccount.id);
+        }
+      }
+
       // Создаем Business Name (всегда создается)
       const businessNameToUse =
         newBusinessName && newBusinessName.trim()

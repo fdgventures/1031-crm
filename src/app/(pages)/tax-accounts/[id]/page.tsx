@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 interface TaxAccount {
   id: number;
   name: string;
+  account_number?: string | null;
   profile_id: number;
   created_at: string;
   updated_at: string;
@@ -253,12 +254,58 @@ export default function TaxAccountViewPage({
         throw new Error("Property selection is required");
       }
 
+      // Get business name details to find tax account
+      const { data: businessName, error: businessNameError } = await supabase
+        .from("business_names")
+        .select("id, name, tax_account_id")
+        .eq("id", selectedBusinessNameId)
+        .single();
+
+      if (businessNameError) throw businessNameError;
+      if (!businessName) throw new Error("Business name not found");
+
+      // Update property with business_name_id
       const { error: updateError } = await supabase
         .from("properties")
         .update({ business_name_id: selectedBusinessNameId })
         .eq("id", selectedPropertyId);
 
       if (updateError) throw updateError;
+
+      // Create current ownership record
+      const ownershipData = {
+        property_id: parseInt(selectedPropertyId),
+        ownership_type: "current",
+        tax_account_id: businessName.tax_account_id,
+        vesting_name: businessName.name,
+      };
+
+      // Check if ownership already exists for this property and tax account
+      const { data: existingOwnership, error: checkError } = await supabase
+        .from("property_ownership")
+        .select("id")
+        .eq("property_id", parseInt(selectedPropertyId))
+        .eq("tax_account_id", businessName.tax_account_id)
+        .eq("vesting_name", businessName.name)
+        .eq("ownership_type", "current")
+        .maybeSingle();
+
+      if (checkError) {
+        console.error("Error checking existing ownership:", checkError);
+        // Continue anyway
+      }
+
+      // Only create ownership if it doesn't exist
+      if (!existingOwnership) {
+        const { error: ownershipError } = await supabase
+          .from("property_ownership")
+          .insert([ownershipData]);
+
+        if (ownershipError) {
+          console.error("Failed to create ownership:", ownershipError);
+          // Don't fail the whole operation, but log the error
+        }
+      }
 
       setSuccess("Property added successfully!");
       setShowAddPropertyModal(false);
@@ -285,12 +332,46 @@ export default function TaxAccountViewPage({
         throw new Error("Property address is required");
       }
 
-      const { error: insertError } = await supabase.from("properties").insert({
-        address: newPropertyAddress,
-        business_name_id: selectedBusinessNameId,
-      });
+      // Get business name details to find tax account
+      const { data: businessName, error: businessNameError } = await supabase
+        .from("business_names")
+        .select("id, name, tax_account_id")
+        .eq("id", selectedBusinessNameId)
+        .single();
+
+      if (businessNameError) throw businessNameError;
+      if (!businessName) throw new Error("Business name not found");
+
+      // Create property
+      const { data: newProperty, error: insertError } = await supabase
+        .from("properties")
+        .insert({
+          address: newPropertyAddress,
+          business_name_id: selectedBusinessNameId,
+        })
+        .select()
+        .single();
 
       if (insertError) throw insertError;
+
+      if (!newProperty) throw new Error("Property creation failed");
+
+      // Create current ownership record
+      const ownershipData = {
+        property_id: newProperty.id,
+        ownership_type: "current",
+        tax_account_id: businessName.tax_account_id,
+        vesting_name: businessName.name,
+      };
+
+      const { error: ownershipError } = await supabase
+        .from("property_ownership")
+        .insert([ownershipData]);
+
+      if (ownershipError) {
+        console.error("Failed to create ownership:", ownershipError);
+        // Don't fail the whole operation, but log the error
+      }
 
       setSuccess("Property created successfully!");
       setShowCreatePropertyModal(false);
@@ -311,12 +392,40 @@ export default function TaxAccountViewPage({
     if (!confirm("Remove this property from the business name?")) return;
 
     try {
+      // Get property's business name before removing
+      const { data: property, error: propertyError } = await supabase
+        .from("properties")
+        .select("business_name_id, business_name:business_name_id(id, name, tax_account_id)")
+        .eq("id", propertyId)
+        .single();
+
+      if (propertyError) throw propertyError;
+
+      // Update property to remove business_name_id
       const { error: updateError } = await supabase
         .from("properties")
         .update({ business_name_id: null })
         .eq("id", propertyId);
 
       if (updateError) throw updateError;
+
+      // Update ownership from "current" to "prior" if exists
+      if (property.business_name && typeof property.business_name === 'object') {
+        const businessName = property.business_name as { id: number; name: string; tax_account_id: number };
+        
+        const { error: ownershipUpdateError } = await supabase
+          .from("property_ownership")
+          .update({ ownership_type: "prior" })
+          .eq("property_id", propertyId)
+          .eq("tax_account_id", businessName.tax_account_id)
+          .eq("vesting_name", businessName.name)
+          .eq("ownership_type", "current");
+
+        if (ownershipUpdateError) {
+          console.error("Failed to update ownership:", ownershipUpdateError);
+          // Continue anyway, property is already removed
+        }
+      }
 
       setSuccess("Property removed successfully!");
       await loadBusinessNames();
@@ -549,7 +658,7 @@ export default function TaxAccountViewPage({
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-2">
                 Profile
@@ -564,6 +673,15 @@ export default function TaxAccountViewPage({
               ) : (
                 <p className="text-gray-500">No profile linked</p>
               )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">
+                Account Number
+              </h3>
+              <p className="text-lg text-gray-900">
+                {taxAccount?.account_number || "—"}
+              </p>
             </div>
 
             <div>

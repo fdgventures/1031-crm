@@ -8,13 +8,19 @@ import { useRouter } from "next/navigation";
 interface TaxAccount {
   id: number;
   name: string;
-  profile_id: number;
+  account_number?: string | null;
+  profile_id?: number | null;
+  entity_id?: number | null;
   created_at: string;
   updated_at: string;
   profile?: {
     first_name: string;
     last_name: string;
     email: string;
+  };
+  entity?: {
+    name: string;
+    email?: string | null;
   };
 }
 
@@ -25,21 +31,30 @@ interface Profile {
   email: string;
 }
 
+interface Entity {
+  id: number;
+  name: string;
+  email?: string | null;
+}
+
 export default function TaxAccountsPage() {
   const router = useRouter();
   const [taxAccounts, setTaxAccounts] = useState<TaxAccount[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [entities, setEntities] = useState<Entity[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [accountType, setAccountType] = useState<"profile" | "entity">("profile");
 
   // Form fields
   const [taxAccountName, setTaxAccountName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [selectedEntityId, setSelectedEntityId] = useState("");
 
   useEffect(() => {
     checkAdminAndLoadTaxAccounts();
@@ -65,6 +80,7 @@ export default function TaxAccountsPage() {
 
       await loadTaxAccounts();
       await loadProfiles();
+      await loadEntities();
     } catch (err) {
       console.error("Error checking admin:", err);
       setLoading(false);
@@ -81,6 +97,10 @@ export default function TaxAccountsPage() {
           profile:profile_id (
             first_name,
             last_name,
+            email
+          ),
+          entity:entity_id (
+            name,
             email
           )
         `
@@ -113,6 +133,20 @@ export default function TaxAccountsPage() {
     }
   };
 
+  const loadEntities = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("entities")
+        .select("id, name, email")
+        .order("name");
+
+      if (error) throw error;
+      setEntities(data || []);
+    } catch (err) {
+      console.error("Failed to load entities:", err);
+    }
+  };
+
   const handleCreateTaxAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -120,8 +154,16 @@ export default function TaxAccountsPage() {
     setCreating(true);
 
     try {
-      if (!taxAccountName || !selectedProfileId) {
-        throw new Error("Tax Account Name and Profile are required");
+      if (!taxAccountName) {
+        throw new Error("Tax Account Name is required");
+      }
+
+      if (accountType === "profile" && !selectedProfileId) {
+        throw new Error("Profile is required");
+      }
+
+      if (accountType === "entity" && !selectedEntityId) {
+        throw new Error("Entity is required");
       }
 
       // Получаем qi_company_id текущего админа
@@ -143,8 +185,13 @@ export default function TaxAccountsPage() {
       // Создаем Tax Account
       const taxAccountData: any = {
         name: taxAccountName,
-        profile_id: parseInt(selectedProfileId),
       };
+
+      if (accountType === "profile") {
+        taxAccountData.profile_id = parseInt(selectedProfileId);
+      } else {
+        taxAccountData.entity_id = parseInt(selectedEntityId);
+      }
 
       if (qiCompanyId) {
         taxAccountData.qi_company_id = qiCompanyId;
@@ -157,6 +204,70 @@ export default function TaxAccountsPage() {
         .single();
 
       if (taxAccountError) throw taxAccountError;
+
+      // Generate account_number for tax account
+      let accountNumber = "";
+      if (accountType === "entity") {
+        // For entities, get entity name
+        const { data: entityData, error: entityError } = await supabase
+          .from("entities")
+          .select("name")
+          .eq("id", parseInt(selectedEntityId))
+          .single();
+
+        if (entityError) throw entityError;
+
+        // Get count of entity tax accounts for sequential number
+        const { count, error: countError } = await supabase
+          .from("tax_accounts")
+          .select("*", { count: "exact", head: true })
+          .not("entity_id", "is", null);
+
+        if (countError) throw countError;
+        const sequenceNumber = ((count || 0) + 1).toString().padStart(3, "0");
+
+        // Format: first 3 letters of entity name (uppercase) + sequential number
+        const prefix = (entityData?.name || "ENT")
+          .substring(0, 3)
+          .toUpperCase()
+          .padEnd(3, "X");
+        accountNumber = `${prefix}${sequenceNumber}`;
+      } else {
+        // For individual users: INV + first 3 letters of last name uppercase + sequential number
+        const { data: profileData, error: profileError } = await supabase
+          .from("profile")
+          .select("last_name")
+          .eq("id", parseInt(selectedProfileId))
+          .single();
+
+        if (profileError) throw profileError;
+
+        // Get count of profile tax accounts for sequential number
+        const { count, error: countError } = await supabase
+          .from("tax_accounts")
+          .select("*", { count: "exact", head: true })
+          .not("profile_id", "is", null);
+
+        if (countError) throw countError;
+        const sequenceNumber = ((count || 0) + 1).toString().padStart(3, "0");
+
+        const lastNamePrefix = (profileData?.last_name || "XXX")
+          .substring(0, 3)
+          .toUpperCase()
+          .padEnd(3, "X");
+        accountNumber = `INV${lastNamePrefix}${sequenceNumber}`;
+      }
+
+      // Update tax account with account_number
+      const { error: updateError } = await supabase
+        .from("tax_accounts")
+        .update({ account_number: accountNumber })
+        .eq("id", taxAccount.id);
+
+      if (updateError) {
+        console.error("Failed to update tax account number:", updateError);
+        // Don't throw - tax account is created, just number failed
+      }
 
       // Создаем Business Name (всегда создается)
       // Если Business Name не указан, используем Tax Account Name
@@ -201,6 +312,8 @@ export default function TaxAccountsPage() {
     setTaxAccountName("");
     setBusinessName("");
     setSelectedProfileId("");
+    setSelectedEntityId("");
+    setAccountType("profile");
   };
 
   if (loading) {
@@ -247,7 +360,10 @@ export default function TaxAccountsPage() {
                   Tax Account Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Profile
+                  Account Number
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Profile / Entity
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created
@@ -261,7 +377,7 @@ export default function TaxAccountsPage() {
               {taxAccounts.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-6 py-8 text-center text-gray-500"
                   >
                     No tax accounts found
@@ -280,13 +396,20 @@ export default function TaxAccountsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {account.account_number || "—"}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
                         {account.profile
                           ? `${account.profile.first_name} ${account.profile.last_name}`
+                          : account.entity
+                          ? account.entity.name
                           : "N/A"}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {account.profile?.email}
+                        {account.profile?.email || account.entity?.email || ""}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -345,6 +468,43 @@ export default function TaxAccountsPage() {
                 )}
 
                 <form onSubmit={handleCreateTaxAccount} className="space-y-6">
+                  {/* Account Type Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Account Type *
+                    </label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          value="profile"
+                          checked={accountType === "profile"}
+                          onChange={(e) => {
+                            setAccountType(e.target.value as "profile" | "entity");
+                            setSelectedProfileId("");
+                            setSelectedEntityId("");
+                          }}
+                          className="mr-2"
+                        />
+                        <span>Profile</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          value="entity"
+                          checked={accountType === "entity"}
+                          onChange={(e) => {
+                            setAccountType(e.target.value as "profile" | "entity");
+                            setSelectedProfileId("");
+                            setSelectedEntityId("");
+                          }}
+                          className="mr-2"
+                        />
+                        <span>Entity</span>
+                      </label>
+                    </div>
+                  </div>
+
                   {/* Tax Account Name */}
                   <div>
                     <label
@@ -386,33 +546,61 @@ export default function TaxAccountsPage() {
                     </p>
                   </div>
 
-                  {/* Profile Selection */}
-                  <div>
-                    <label
-                      htmlFor="profileSelect"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Select Profile *
-                    </label>
-                    <select
-                      id="profileSelect"
-                      value={selectedProfileId}
-                      onChange={(e) => setSelectedProfileId(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    >
-                      <option value="">-- Select a Profile --</option>
-                      {profiles.map((profile) => (
-                        <option key={profile.id} value={profile.id}>
-                          {profile.first_name} {profile.last_name} (
-                          {profile.email})
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">
-                      This tax account will be linked to the selected profile
-                    </p>
-                  </div>
+                  {/* Profile or Entity Selection */}
+                  {accountType === "profile" ? (
+                    <div>
+                      <label
+                        htmlFor="profileSelect"
+                        className="block text-sm font-medium text-gray-700 mb-2"
+                      >
+                        Select Profile *
+                      </label>
+                      <select
+                        id="profileSelect"
+                        value={selectedProfileId}
+                        onChange={(e) => setSelectedProfileId(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      >
+                        <option value="">-- Select a Profile --</option>
+                        {profiles.map((profile) => (
+                          <option key={profile.id} value={profile.id}>
+                            {profile.first_name} {profile.last_name} (
+                            {profile.email})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        This tax account will be linked to the selected profile
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <label
+                        htmlFor="entitySelect"
+                        className="block text-sm font-medium text-gray-700 mb-2"
+                      >
+                        Select Entity *
+                      </label>
+                      <select
+                        id="entitySelect"
+                        value={selectedEntityId}
+                        onChange={(e) => setSelectedEntityId(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      >
+                        <option value="">-- Select an Entity --</option>
+                        {entities.map((entity) => (
+                          <option key={entity.id} value={entity.id}>
+                            {entity.name} {entity.email ? `(${entity.email})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        This tax account will be linked to the selected entity
+                      </p>
+                    </div>
+                  )}
 
                   {/* Buttons */}
                   <div className="flex gap-3 pt-4">
