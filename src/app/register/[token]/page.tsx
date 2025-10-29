@@ -5,12 +5,29 @@ import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter, useParams } from "next/navigation";
 
+interface ProfileInvitation {
+  id: number;
+  profile_id: string;
+  email: string;
+  token: string;
+  status: string;
+  expires_at: string;
+}
+
+interface Profile {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email?: string | null;
+}
+
 export default function RegisterInvitePage() {
   const router = useRouter();
   const params = useParams();
   const token = params.token as string;
 
-  const [invitation, setInvitation] = useState<any>(null);
+  const [invitation, setInvitation] = useState<ProfileInvitation | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -27,40 +44,64 @@ export default function RegisterInvitePage() {
     try {
       console.log("Loading invitation for token:", token);
 
-      const { data, error } = await supabase
-        .from("admin_invitations")
+      const { data: invitationData, error: invitationError } = await supabase
+        .from("profile_invitations")
         .select("*")
         .eq("token", token)
         .single();
 
-      console.log("Invitation query result:", { data, error });
+      console.log("Invitation query result:", {
+        invitationData,
+        invitationError,
+      });
 
-      if (error || !data) {
-        console.error("Invitation error:", error);
+      if (invitationError || !invitationData) {
+        console.error("Invitation error:", invitationError);
         setError("Invitation not found or has expired");
         setIsLoading(false);
         return;
       }
 
-      // Проверяем статус
-      if (data.status !== "pending") {
-        console.log("Invitation status is not pending:", data.status);
-        setError(`Invitation status is ${data.status}`);
+      // Check status
+      if (invitationData.status !== "pending") {
+        console.log("Invitation status is not pending:", invitationData.status);
+        setError(
+          `Invitation is already ${
+            invitationData.status === "accepted" ? "accepted" : "inactive"
+          }`
+        );
         setIsLoading(false);
         return;
       }
 
-      // Проверяем срок действия
-      const expiresAt = new Date(data.expires_at);
+      // Check expiration
+      const expiresAt = new Date(invitationData.expires_at);
       if (expiresAt < new Date()) {
         setError("Invitation has expired");
         setIsLoading(false);
         return;
       }
 
-      setInvitation(data);
-      setEmail(data.email);
+      setInvitation(invitationData);
+      setEmail(invitationData.email);
+
+      // Load profile
+      const { data: profileData, error: profileError } = await supabase
+        .from("profile")
+        .select("*")
+        .eq("id", invitationData.profile_id)
+        .single();
+
+      if (profileError) {
+        console.error("Profile error:", profileError);
+        setError("Failed to load profile information");
+        setIsLoading(false);
+        return;
+      }
+
+      setProfile(profileData);
     } catch (err) {
+      console.error("Failed to load invitation:", err);
       setError("Failed to load invitation");
     } finally {
       setIsLoading(false);
@@ -82,15 +123,23 @@ export default function RegisterInvitePage() {
       return;
     }
 
+    if (!invitation || !profile) {
+      setError("Missing invitation or profile information");
+      return;
+    }
+
     setIsRegistering(true);
 
     try {
-      // Регистрируем пользователя
+      // Register user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            profile_id: invitation.profile_id,
+          },
         },
       });
 
@@ -106,45 +155,66 @@ export default function RegisterInvitePage() {
         return;
       }
 
-      // Создаем профиль
-      const profileData: any = {
-        id: authData.user.id,
-        email,
-        role: invitation.role_type,
-        role_type: invitation.role_type,
-        is_verified: false,
-      };
+      // Update profile, linking user_id
+      const { error: profileUpdateError } = await supabase
+        .from("profile")
+        .update({
+          user_id: authData.user.id,
+          email: email,
+        })
+        .eq("id", invitation.profile_id);
 
-      // Добавляем qi_company_id если есть в приглашении
-      if (invitation.qi_company_id) {
-        profileData.qi_company_id = invitation.qi_company_id;
-      }
-
-      const { error: profileError } = await supabase
-        .from("user_profiles")
-        .insert(profileData);
-
-      if (profileError) {
-        setError(`Profile error: ${profileError.message}`);
+      if (profileUpdateError) {
+        console.error("Profile update error:", profileUpdateError);
+        setError(`Profile update error: ${profileUpdateError.message}`);
         setIsRegistering(false);
         return;
       }
 
-      // Обновляем статус приглашения
+      // Create user_profiles entry for regular user
+      const { error: userProfileError } = await supabase
+        .from("user_profiles")
+        .insert({
+          id: authData.user.id,
+          email: email,
+          role: "user",
+          role_type: "user",
+          is_verified: false,
+        });
+
+      if (userProfileError) {
+        console.warn("User profile creation warning:", userProfileError);
+        // Don't stop the process, as this is not a critical error
+      }
+
+      // Update invitation status
       await supabase
-        .from("admin_invitations")
+        .from("profile_invitations")
         .update({ status: "accepted" })
         .eq("token", token);
 
-      setSuccess(
-        "Registration successful! Please check your email to verify your account."
-      );
+      // Check if user is automatically signed in (depends on Supabase email confirmation settings)
+      const { data: sessionData } = await supabase.auth.getSession();
 
-      setTimeout(() => {
-        router.push("/admin/signin");
-      }, 3000);
+      if (sessionData.session) {
+        // User is signed in
+        setSuccess("Registration successful! Redirecting...");
+        setTimeout(() => {
+          router.push(`/profiles/${profile.id}`);
+          router.refresh(); // Force refresh to update header
+        }, 1500);
+      } else {
+        // User needs to confirm email
+        setSuccess(
+          "Registration successful! Please check your email to verify your account, then sign in."
+        );
+        setTimeout(() => {
+          router.push("/admin/signin");
+        }, 3000);
+      }
     } catch (err: any) {
-      setError(err.message || "Registration failed");
+      console.error("Registration error:", err);
+      setError(err.message || "Failed to register");
     } finally {
       setIsRegistering(false);
     }
@@ -170,11 +240,8 @@ export default function RegisterInvitePage() {
               Invalid Invitation
             </h2>
             <p className="text-gray-600 mb-6">{error}</p>
-            <Button
-              onClick={() => router.push("/admin/signin")}
-              variant="primary"
-            >
-              Go to Sign In
+            <Button onClick={() => router.push("/")} variant="primary">
+              Go to Home
             </Button>
           </div>
         </div>
@@ -190,12 +257,14 @@ export default function RegisterInvitePage() {
             <h2 className="mt-6 text-3xl font-bold text-gray-900">
               Complete Your Registration
             </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              You've been invited as{" "}
-              {invitation?.role_type === "platform_super_admin"
-                ? "Platform Super Admin"
-                : "Admin"}
-            </p>
+            {profile && (
+              <p className="mt-2 text-sm text-gray-600">
+                You are invited to register and link to profile:{" "}
+                <span className="font-semibold">
+                  {profile.first_name} {profile.last_name}
+                </span>
+              </p>
+            )}
           </div>
 
           <form className="mt-8 space-y-6" onSubmit={handleRegister}>

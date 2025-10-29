@@ -82,15 +82,34 @@ export default function AdminSignInPage() {
 
       console.log("Profile response:", { profile, profileError });
 
-      if (profileError) {
-        console.log("Profile error:", profileError);
-        setError(`Profile error: ${profileError.message}`);
-        return;
-      }
+      // Check user role and redirect accordingly
+      const isAdmin =
+        profile?.role_type &&
+        ["workspace_owner", "platform_super_admin", "admin"].includes(
+          profile.role_type
+        );
 
-      // Успешный вход - перенаправляем на админ панель
-      console.log("Sign in successful, redirecting to dashboard...");
-      router.push("/admin/dashboard");
+      if (isAdmin) {
+        // Admin user - redirect to dashboard
+        console.log("Admin user, redirecting to dashboard...");
+        router.push("/admin/dashboard");
+      } else {
+        // Regular user - find their profile and redirect
+        console.log("Regular user, finding profile...");
+        const { data: userProfile, error: userProfileError } = await supabase
+          .from("profile")
+          .select("id")
+          .eq("user_id", data.user.id)
+          .single();
+
+        if (userProfileError || !userProfile) {
+          console.log("Profile not found, redirecting to home...");
+          router.push("/");
+        } else {
+          console.log("Profile found, redirecting to profile page...");
+          router.push(`/profiles/${userProfile.id}`);
+        }
+      }
     } catch (err) {
       console.log("Sign in error:", err);
       setError(

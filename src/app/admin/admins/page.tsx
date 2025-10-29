@@ -23,6 +23,7 @@ interface Invitation {
   status: string;
   created_at: string;
   expires_at: string;
+  qi_company_id?: string;
 }
 
 export default function AdminsManagementPage() {
@@ -173,14 +174,21 @@ export default function AdminsManagementPage() {
         return;
       }
 
+      const invitationData: any = {
+        email: newInvite.email,
+        role_type: newInvite.role_type,
+        role: newInvite.role_type,
+        invited_by: currentUser.id,
+      };
+
+      // Автоматически присваиваем qi_company_id от текущего админа
+      if (currentUser.qi_company_id) {
+        invitationData.qi_company_id = currentUser.qi_company_id;
+      }
+
       const { data: insertedInvitation, error: inviteError } = await supabase
         .from("admin_invitations")
-        .insert({
-          email: newInvite.email,
-          role_type: newInvite.role_type,
-          role: newInvite.role_type,
-          invited_by: currentUser.id,
-        })
+        .insert(invitationData)
         .select()
         .single();
 
@@ -326,6 +334,14 @@ export default function AdminsManagementPage() {
                     <option value="admin">Admin</option>
                   </select>
                 </div>
+
+                {currentUser?.qi_company_id && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                    <p className="text-sm text-blue-800">
+                      This admin will be assigned to your QI company workspace
+                    </p>
+                  </div>
+                )}
 
                 <Button type="submit" variant="primary">
                   Send Invitation
