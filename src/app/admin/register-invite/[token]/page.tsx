@@ -1,16 +1,35 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter, useParams } from "next/navigation";
+
+type AdminInvitation = {
+  id: string;
+  email: string;
+  token: string;
+  status: string;
+  expires_at: string;
+  role_type: string;
+  qi_company_id: string | null;
+};
+
+type NewUserProfile = {
+  id: string;
+  email: string;
+  role: string;
+  role_type: string;
+  is_verified: boolean;
+  qi_company_id?: string | null;
+};
 
 export default function RegisterInvitePage() {
   const router = useRouter();
   const params = useParams();
   const token = params.token as string;
 
-  const [invitation, setInvitation] = useState<any>(null);
+  const [invitation, setInvitation] = useState<AdminInvitation | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -19,11 +38,24 @@ export default function RegisterInvitePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadInvitation();
-  }, [token]);
+  const getErrorMessage = useCallback((err: unknown, fallback: string) => {
+    if (err instanceof Error && err.message) {
+      return err.message;
+    }
 
-  const loadInvitation = async () => {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "message" in err &&
+      typeof (err as { message?: unknown }).message === "string"
+    ) {
+      return (err as { message: string }).message;
+    }
+
+    return fallback;
+  }, []);
+
+  const loadInvitation = useCallback(async () => {
     try {
       console.log("Loading invitation for token:", token);
 
@@ -58,14 +90,28 @@ export default function RegisterInvitePage() {
         return;
       }
 
-      setInvitation(data);
-      setEmail(data.email);
+      const normalizedInvitation: AdminInvitation = {
+        id: data.id,
+        email: data.email,
+        token: data.token,
+        status: data.status,
+        expires_at: data.expires_at,
+        role_type: data.role_type,
+        qi_company_id: data.qi_company_id ?? null,
+      };
+
+      setInvitation(normalizedInvitation);
+      setEmail(normalizedInvitation.email);
     } catch (err) {
-      setError("Failed to load invitation");
+      setError(getErrorMessage(err, "Failed to load invitation"));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getErrorMessage, token]);
+
+  useEffect(() => {
+    void loadInvitation();
+  }, [loadInvitation]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +125,11 @@ export default function RegisterInvitePage() {
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters");
+      return;
+    }
+
+    if (!invitation) {
+      setError("Invitation is missing");
       return;
     }
 
@@ -107,7 +158,7 @@ export default function RegisterInvitePage() {
       }
 
       // Создаем профиль
-      const profileData: any = {
+      const profileData: NewUserProfile = {
         id: authData.user.id,
         email,
         role: invitation.role_type,
@@ -143,8 +194,8 @@ export default function RegisterInvitePage() {
       setTimeout(() => {
         router.push("/admin/signin");
       }, 3000);
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
+    } catch (err) {
+      setError(getErrorMessage(err, "Registration failed"));
     } finally {
       setIsRegistering(false);
     }
@@ -191,7 +242,7 @@ export default function RegisterInvitePage() {
               Complete Your Registration
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              You've been invited as{" "}
+              You&apos;ve been invited as{" "}
               {invitation?.role_type === "platform_super_admin"
                 ? "Platform Super Admin"
                 : "Admin"}

@@ -59,8 +59,15 @@ export default function SetupPage() {
           setError("Please sign in with fdgventures@gmail.com first");
         }
       }
-    } catch (err: any) {
-      setError(err.message || "Setup failed");
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+          ? String((err as { message?: unknown }).message ?? "Setup failed")
+          : "Setup failed";
+
+      setError(message);
     } finally {
       setIsLoading(false);
     }

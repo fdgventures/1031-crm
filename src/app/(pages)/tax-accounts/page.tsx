@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
+import { getErrorMessage } from "@/lib/get-error-message";
 
 interface TaxAccount {
   id: number;
@@ -37,6 +38,13 @@ interface Entity {
   email?: string | null;
 }
 
+type NewTaxAccountInsert = {
+  name: string;
+  profile_id?: number;
+  entity_id?: number;
+  qi_company_id?: string | null;
+};
+
 export default function TaxAccountsPage() {
   const router = useRouter();
   const [taxAccounts, setTaxAccounts] = useState<TaxAccount[]>([]);
@@ -56,96 +64,101 @@ export default function TaxAccountsPage() {
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [selectedEntityId, setSelectedEntityId] = useState("");
 
-  useEffect(() => {
-    checkAdminAndLoadTaxAccounts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const loadTaxAccounts = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("tax_accounts")
+      .select(
+        `
+        *,
+        profile:profile_id (
+          first_name,
+          last_name,
+          email
+        ),
+        entity:entity_id (
+          name,
+          email
+        )
+      `
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    setTaxAccounts((data ?? []) as TaxAccount[]);
   }, []);
 
-  const checkAdminAndLoadTaxAccounts = async () => {
+  const loadProfiles = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("profile")
+      .select("id, first_name, last_name, email")
+      .order("first_name");
+
+    if (error) {
+      throw error;
+    }
+
+    setProfiles((data ?? []) as Profile[]);
+  }, []);
+
+  const loadEntities = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("entities")
+      .select("id, name, email")
+      .order("name");
+
+    if (error) {
+      throw error;
+    }
+
+    setEntities((data ?? []) as Entity[]);
+  }, []);
+
+  const checkAdminAndLoadTaxAccounts = useCallback(async () => {
     try {
+      setLoading(true);
+      setError(null);
+
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
 
+      if (authError) {
+        throw authError;
+      }
+
       if (user) {
-        const { data: userProfile } = await supabase
+        const { data: userProfile, error: userProfileError } = await supabase
           .from("user_profiles")
           .select("role_type, qi_company_id")
           .eq("id", user.id)
           .single();
 
+        if (userProfileError) {
+          throw userProfileError;
+        }
+
         const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
-        setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
+        setIsAdmin(adminRoles.includes(userProfile?.role_type ?? ""));
+      } else {
+        setIsAdmin(false);
       }
 
-      await loadTaxAccounts();
-      await loadProfiles();
-      await loadEntities();
+      await Promise.all([loadTaxAccounts(), loadProfiles(), loadEntities()]);
     } catch (err) {
       console.error("Error checking admin:", err);
-      setLoading(false);
-    }
-  };
-
-  const loadTaxAccounts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("tax_accounts")
-        .select(
-          `
-          *,
-          profile:profile_id (
-            first_name,
-            last_name,
-            email
-          ),
-          entity:entity_id (
-            name,
-            email
-          )
-        `
-        )
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setTaxAccounts(data || []);
-    } catch (err) {
-      console.error("Failed to load tax accounts:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to load tax accounts"
-      );
+      setError(getErrorMessage(err, "Failed to load tax accounts"));
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadEntities, loadProfiles, loadTaxAccounts]);
 
-  const loadProfiles = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("profile")
-        .select("id, first_name, last_name, email")
-        .order("first_name");
-
-      if (error) throw error;
-      setProfiles(data || []);
-    } catch (err) {
-      console.error("Failed to load profiles:", err);
-    }
-  };
-
-  const loadEntities = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("entities")
-        .select("id, name, email")
-        .order("name");
-
-      if (error) throw error;
-      setEntities(data || []);
-    } catch (err) {
-      console.error("Failed to load entities:", err);
-    }
-  };
+  useEffect(() => {
+    void checkAdminAndLoadTaxAccounts();
+  }, [checkAdminAndLoadTaxAccounts]);
 
   const handleCreateTaxAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,103 +167,135 @@ export default function TaxAccountsPage() {
     setCreating(true);
 
     try {
-      if (!taxAccountName) {
+      const trimmedTaxAccountName = taxAccountName.trim();
+
+      if (!trimmedTaxAccountName) {
         throw new Error("Tax Account Name is required");
       }
 
-      if (accountType === "profile" && !selectedProfileId) {
+      const requiresProfile = accountType === "profile";
+      const requiresEntity = accountType === "entity";
+
+      const parsedProfileId = requiresProfile
+        ? Number.parseInt(selectedProfileId, 10)
+        : null;
+      const parsedEntityId = requiresEntity
+        ? Number.parseInt(selectedEntityId, 10)
+        : null;
+
+      if (requiresProfile && (parsedProfileId === null || Number.isNaN(parsedProfileId))) {
         throw new Error("Profile is required");
       }
 
-      if (accountType === "entity" && !selectedEntityId) {
+      if (requiresEntity && (parsedEntityId === null || Number.isNaN(parsedEntityId))) {
         throw new Error("Entity is required");
       }
 
-      // Получаем qi_company_id текущего админа
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
 
-      let qiCompanyId = null;
+      if (authError) {
+        throw authError;
+      }
+
+      let qiCompanyId: string | null = null;
       if (user) {
-        const { data: userProfile } = await supabase
+        const { data: userProfile, error: userProfileError } = await supabase
           .from("user_profiles")
           .select("qi_company_id")
           .eq("id", user.id)
           .single();
 
-        qiCompanyId = userProfile?.qi_company_id || null;
+        if (userProfileError) {
+          throw userProfileError;
+        }
+
+        qiCompanyId = (userProfile?.qi_company_id as string | null) ?? null;
       }
 
-      // Создаем Tax Account
-      const taxAccountData: any = {
-        name: taxAccountName,
+      const taxAccountInsert: NewTaxAccountInsert = {
+        name: trimmedTaxAccountName,
       };
 
-      if (accountType === "profile") {
-        taxAccountData.profile_id = parseInt(selectedProfileId);
-      } else {
-        taxAccountData.entity_id = parseInt(selectedEntityId);
+      if (parsedProfileId !== null && !Number.isNaN(parsedProfileId)) {
+        taxAccountInsert.profile_id = parsedProfileId;
+      }
+
+      if (parsedEntityId !== null && !Number.isNaN(parsedEntityId)) {
+        taxAccountInsert.entity_id = parsedEntityId;
       }
 
       if (qiCompanyId) {
-        taxAccountData.qi_company_id = qiCompanyId;
+        taxAccountInsert.qi_company_id = qiCompanyId;
       }
 
       const { data: taxAccount, error: taxAccountError } = await supabase
         .from("tax_accounts")
-        .insert(taxAccountData)
+        .insert(taxAccountInsert)
         .select()
         .single();
 
-      if (taxAccountError) throw taxAccountError;
+      if (taxAccountError) {
+        throw taxAccountError;
+      }
 
-      // Generate account_number for tax account
+      if (!taxAccount) {
+        throw new Error("Failed to create tax account");
+      }
+
+      const createdTaxAccount = taxAccount as TaxAccount;
+
       let accountNumber = "";
-      if (accountType === "entity") {
-        // For entities, get entity name
+
+      if (requiresEntity && parsedEntityId !== null && !Number.isNaN(parsedEntityId)) {
         const { data: entityData, error: entityError } = await supabase
           .from("entities")
           .select("name")
-          .eq("id", parseInt(selectedEntityId))
+          .eq("id", parsedEntityId)
           .single();
 
-        if (entityError) throw entityError;
+        if (entityError) {
+          throw entityError;
+        }
 
-        // Get count of entity tax accounts for sequential number
         const { count, error: countError } = await supabase
           .from("tax_accounts")
           .select("*", { count: "exact", head: true })
           .not("entity_id", "is", null);
 
-        if (countError) throw countError;
-        const sequenceNumber = ((count || 0) + 1).toString().padStart(3, "0");
+        if (countError) {
+          throw countError;
+        }
 
-        // Format: first 3 letters of entity name (uppercase) + sequential number
+        const sequenceNumber = ((count ?? 0) + 1).toString().padStart(3, "0");
         const prefix = (entityData?.name || "ENT")
           .substring(0, 3)
           .toUpperCase()
           .padEnd(3, "X");
         accountNumber = `${prefix}${sequenceNumber}`;
-      } else {
-        // For individual users: INV + first 3 letters of last name uppercase + sequential number
+      } else if (requiresProfile && parsedProfileId !== null && !Number.isNaN(parsedProfileId)) {
         const { data: profileData, error: profileError } = await supabase
           .from("profile")
           .select("last_name")
-          .eq("id", parseInt(selectedProfileId))
+          .eq("id", parsedProfileId)
           .single();
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          throw profileError;
+        }
 
-        // Get count of profile tax accounts for sequential number
         const { count, error: countError } = await supabase
           .from("tax_accounts")
           .select("*", { count: "exact", head: true })
           .not("profile_id", "is", null);
 
-        if (countError) throw countError;
-        const sequenceNumber = ((count || 0) + 1).toString().padStart(3, "0");
+        if (countError) {
+          throw countError;
+        }
 
+        const sequenceNumber = ((count ?? 0) + 1).toString().padStart(3, "0");
         const lastNamePrefix = (profileData?.last_name || "XXX")
           .substring(0, 3)
           .toUpperCase()
@@ -258,29 +303,26 @@ export default function TaxAccountsPage() {
         accountNumber = `INV${lastNamePrefix}${sequenceNumber}`;
       }
 
-      // Update tax account with account_number
-      const { error: updateError } = await supabase
-        .from("tax_accounts")
-        .update({ account_number: accountNumber })
-        .eq("id", taxAccount.id);
+      if (accountNumber) {
+        const { error: updateError } = await supabase
+          .from("tax_accounts")
+          .update({ account_number: accountNumber })
+          .eq("id", createdTaxAccount.id);
 
-      if (updateError) {
-        console.error("Failed to update tax account number:", updateError);
-        // Don't throw - tax account is created, just number failed
+        if (updateError) {
+          console.error("Failed to update tax account number:", updateError);
+        }
       }
 
-      // Создаем Business Name (всегда создается)
-      // Если Business Name не указан, используем Tax Account Name
-      const businessNameToUse =
-        businessName && businessName.trim()
-          ? businessName.trim()
-          : taxAccountName;
+      const businessNameToUse = businessName.trim()
+        ? businessName.trim()
+        : trimmedTaxAccountName;
 
       const { error: businessNameError } = await supabase
         .from("business_names")
         .insert({
           name: businessNameToUse,
-          tax_account_id: taxAccount.id,
+          tax_account_id: createdTaxAccount.id,
         });
 
       if (businessNameError) {
@@ -300,9 +342,7 @@ export default function TaxAccountsPage() {
       }, 1500);
     } catch (err) {
       console.error("Failed to create tax account:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to create tax account"
-      );
+      setError(getErrorMessage(err, "Failed to create tax account"));
     } finally {
       setCreating(false);
     }

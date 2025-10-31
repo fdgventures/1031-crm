@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter, useParams } from "next/navigation";
@@ -36,11 +36,24 @@ export default function RegisterInvitePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadInvitation();
-  }, [token]);
+  const getErrorMessage = useCallback((error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
 
-  const loadInvitation = async () => {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      typeof (error as { message?: unknown }).message === "string"
+    ) {
+      return (error as { message: string }).message;
+    }
+
+    return fallback;
+  }, []);
+
+  const loadInvitation = useCallback(async () => {
     try {
       console.log("Loading invitation for token:", token);
 
@@ -102,11 +115,15 @@ export default function RegisterInvitePage() {
       setProfile(profileData);
     } catch (err) {
       console.error("Failed to load invitation:", err);
-      setError("Failed to load invitation");
+      setError(getErrorMessage(err, "Failed to load invitation"));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getErrorMessage, token]);
+
+  useEffect(() => {
+    void loadInvitation();
+  }, [loadInvitation]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,9 +229,9 @@ export default function RegisterInvitePage() {
           router.push("/admin/signin");
         }, 3000);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Registration error:", err);
-      setError(err.message || "Failed to register");
+      setError(getErrorMessage(err, "Failed to register"));
     } finally {
       setIsRegistering(false);
     }

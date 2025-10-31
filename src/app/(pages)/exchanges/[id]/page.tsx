@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect, useCallback, use } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getErrorMessage } from "@/lib/get-error-message";
 
 interface Exchange {
   id: number;
@@ -58,11 +59,7 @@ export default function ExchangeViewPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadExchangeData();
-  }, [resolvedParams.id]);
-
-  const loadExchangeData = async () => {
+  const loadExchangeData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -118,13 +115,17 @@ export default function ExchangeViewPage({
 
       if (transactionsError) throw transactionsError;
       setTransactions(transactionsData || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to load exchange:", err);
-      setError(err.message || "Failed to load exchange");
+      setError(getErrorMessage(err, "Failed to load exchange"));
     } finally {
       setLoading(false);
     }
-  };
+  }, [resolvedParams.id]);
+
+  useEffect(() => {
+    void loadExchangeData();
+  }, [loadExchangeData]);
 
   if (loading) {
     return (

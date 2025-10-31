@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
+import { getErrorMessage } from "@/lib/get-error-message";
 
 interface AdminProfile {
   id: string;
@@ -24,11 +25,24 @@ interface Invitation {
   created_at: string;
   expires_at: string;
   qi_company_id?: string;
+  token: string;
 }
+
+type CurrentAdminProfile = AdminProfile & {
+  qi_company_id?: string | null;
+};
+
+type AdminInvitationInsert = {
+  email: string;
+  role_type: string;
+  role: string;
+  invited_by: string;
+  qi_company_id?: string | null;
+};
 
 export default function AdminsManagementPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentAdminProfile | null>(null);
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,17 +55,56 @@ export default function AdminsManagementPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [invitationLink, setInvitationLink] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkAuthAndLoadData();
+  const loadAdmins = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .in("role", ["platform_super_admin", "admin"])
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setAdmins((data ?? []) as AdminProfile[]);
+    } catch (err) {
+      console.error("Failed to load admins:", err);
+      setAdmins([]);
+    }
   }, []);
 
-  const checkAuthAndLoadData = async () => {
+  const loadInvitations = useCallback(async () => {
     try {
+      const { data, error } = await supabase
+        .from("admin_invitations")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setInvitations((data ?? []) as Invitation[]);
+    } catch (err) {
+      console.error("Failed to load invitations:", err);
+      setInvitations([]);
+    }
+  }, []);
+
+  const checkAuthAndLoadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
 
-      // console.log("User check:", user);
+      if (authError) {
+        throw authError;
+      }
 
       if (!user) {
         router.push("/admin/signin");
@@ -64,79 +117,30 @@ export default function AdminsManagementPage() {
         .eq("id", user.id)
         .single();
 
-      // console.log("Profile check:", {
-      //   profile,
-      //   profileError,
-      //   role_type: profile?.role_type,
-      // });
-
-      if (profileError) {
+      if (profileError || !profile) {
         console.error("Profile error:", profileError);
-        console.error("Full error:", JSON.stringify(profileError, null, 2));
         router.push("/admin/dashboard");
         return;
       }
 
-      if (!profile) {
-        console.log("No profile found");
+      if (!profile.role_type || !["workspace_owner", "platform_super_admin"].includes(profile.role_type)) {
         router.push("/admin/dashboard");
         return;
       }
 
-      // Разрешаем доступ только workspace_owner и platform_super_admin
-      if (
-        !profile.role_type ||
-        !["workspace_owner", "platform_super_admin"].includes(profile.role_type)
-      ) {
-        router.push("/admin/dashboard");
-        return;
-      }
-
-      setCurrentUser(profile);
-      await loadAdmins();
-      await loadInvitations();
+      setCurrentUser(profile as CurrentAdminProfile);
+      await Promise.all([loadAdmins(), loadInvitations()]);
     } catch (err) {
       console.error("Auth check error:", err);
       router.push("/admin/signin");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [loadAdmins, loadInvitations, router]);
 
-  const loadAdmins = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .in("role", ["platform_super_admin", "admin"])
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setAdmins(data || []);
-    } catch (err) {
-      console.error("Failed to load admins:", err);
-    }
-  };
-
-  const loadInvitations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("admin_invitations")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      // console.log("Load invitations:", { data, error });
-
-      if (error) {
-        console.error("Invitations error:", error);
-        throw error;
-      }
-      setInvitations(data || []);
-    } catch (err) {
-      console.error("Failed to load invitations:", err);
-      setInvitations([]); // Устанавливаем пустой массив вместо ошибки
-    }
-  };
+  useEffect(() => {
+    void checkAuthAndLoadData();
+  }, [checkAuthAndLoadData]);
 
   const handleInviteAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,61 +152,72 @@ export default function AdminsManagementPage() {
       return;
     }
 
+    if (!currentUser) {
+      setError("Current user is not loaded");
+      return;
+    }
+
     try {
-      // Проверяем, нет ли уже пользователя с таким email
-      const { data: existingAdmin } = await supabase
+      const { data: existingAdmin, error: existingAdminError } = await supabase
         .from("user_profiles")
         .select("id")
         .eq("email", newInvite.email)
-        .single();
+        .maybeSingle();
+
+      if (existingAdminError) {
+        throw existingAdminError;
+      }
 
       if (existingAdmin) {
         setError("Admin with this email already exists");
         return;
       }
 
-      // Проверяем, нет ли открытого приглашения
-      const { data: existingInvitation } = await supabase
+      const { data: existingInvitation, error: existingInvitationError } = await supabase
         .from("admin_invitations")
         .select("id")
         .eq("email", newInvite.email)
         .eq("status", "pending")
-        .single();
+        .maybeSingle();
+
+      if (existingInvitationError) {
+        throw existingInvitationError;
+      }
 
       if (existingInvitation) {
         setError("Invitation already sent to this email");
         return;
       }
 
-      const invitationData: any = {
+      const invitationInsert: AdminInvitationInsert = {
         email: newInvite.email,
         role_type: newInvite.role_type,
         role: newInvite.role_type,
         invited_by: currentUser.id,
       };
 
-      // Автоматически присваиваем qi_company_id от текущего админа
       if (currentUser.qi_company_id) {
-        invitationData.qi_company_id = currentUser.qi_company_id;
+        invitationInsert.qi_company_id = currentUser.qi_company_id;
       }
 
       const { data: insertedInvitation, error: inviteError } = await supabase
         .from("admin_invitations")
-        .insert(invitationData)
+        .insert(invitationInsert)
         .select()
         .single();
 
-      if (inviteError) throw inviteError;
+      if (inviteError) {
+        throw inviteError;
+      }
 
-      // Генерируем ссылку на регистрацию
       const invitationUrl = `${window.location.origin}/admin/register-invite/${insertedInvitation.token}`;
       setInvitationLink(invitationUrl);
       setSuccess("Invitation created! Copy the link below to send it.");
       setNewInvite({ email: "", role_type: "platform_super_admin" });
       setShowInviteForm(false);
       await loadInvitations();
-    } catch (err: any) {
-      setError(err.message || "Failed to send invitation");
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to send invitation"));
     }
   };
 
@@ -215,12 +230,14 @@ export default function AdminsManagementPage() {
         .delete()
         .eq("id", invitationId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       setSuccess("Invitation removed");
       await loadInvitations();
-    } catch (err: any) {
-      setError(err.message || "Failed to remove invitation");
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to remove invitation"));
     }
   };
 
@@ -380,7 +397,7 @@ export default function AdminsManagementPage() {
                           {new Date(invitation.expires_at).toLocaleDateString()}
                         </p>
                       </div>
-                      {currentUser.role_type === "workspace_owner" && (
+                      {currentUser?.role_type === "workspace_owner" && (
                         <Button
                           onClick={() => handleRemoveInvitation(invitation.id)}
                           variant="destructive"

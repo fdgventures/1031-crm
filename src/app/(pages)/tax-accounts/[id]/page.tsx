@@ -37,6 +37,19 @@ interface Property {
   created_at: string;
 }
 
+type PropertyBusinessNameSelection =
+  | null
+  | {
+      id: number | null;
+      name: string | null;
+      tax_account_id: number | null;
+    }
+  | Array<{
+      id: number | null;
+      name: string | null;
+      tax_account_id: number | null;
+    }>;
+
 export default function TaxAccountViewPage({
   params,
 }: {
@@ -410,15 +423,24 @@ export default function TaxAccountViewPage({
       if (updateError) throw updateError;
 
       // Update ownership from "current" to "prior" if exists
-      if (property.business_name && typeof property.business_name === 'object') {
-        const businessName = property.business_name as { id: number; name: string; tax_account_id: number };
-        
+      const businessNameSelection = property.business_name as PropertyBusinessNameSelection;
+      const resolvedBusinessName = Array.isArray(businessNameSelection)
+        ? businessNameSelection[0]
+        : businessNameSelection;
+
+      if (
+        resolvedBusinessName &&
+        resolvedBusinessName.name &&
+        resolvedBusinessName.tax_account_id !== null
+      ) {
+        const { name: businessNameValue, tax_account_id: taxAccountId } = resolvedBusinessName;
+
         const { error: ownershipUpdateError } = await supabase
           .from("property_ownership")
           .update({ ownership_type: "prior" })
           .eq("property_id", propertyId)
-          .eq("tax_account_id", businessName.tax_account_id)
-          .eq("vesting_name", businessName.name)
+          .eq("tax_account_id", taxAccountId)
+          .eq("vesting_name", businessNameValue)
           .eq("ownership_type", "current");
 
         if (ownershipUpdateError) {

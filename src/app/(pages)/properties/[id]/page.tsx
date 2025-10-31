@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect, useCallback, use } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
+import { getErrorMessage } from "@/lib/get-error-message";
 
 interface Property {
   id: number;
@@ -49,6 +50,14 @@ interface BusinessName {
   tax_account_id: number;
 }
 
+type PropertyOwnershipInsert = {
+  property_id: number;
+  ownership_type: "current";
+  tax_account_id: number | null;
+  vesting_name: string | null;
+  non_exchange_name: string | null;
+};
+
 export default function PropertyViewPage({
   params,
 }: {
@@ -76,6 +85,94 @@ export default function PropertyViewPage({
   // Tax accounts and business names
   const [taxAccounts, setTaxAccounts] = useState<TaxAccount[]>([]);
   const [filteredTaxAccounts, setFilteredTaxAccounts] = useState<TaxAccount[]>([]);
+
+  const loadProperty = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("properties")
+      .select("*")
+      .eq("id", resolvedParams.id)
+      .single();
+
+    if (error) throw error;
+
+    if (!data) {
+      throw new Error("Property not found");
+    }
+
+    setProperty(data as Property);
+  }, [resolvedParams.id]);
+
+  const loadOwnerships = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("property_ownership")
+        .select(
+          `
+          *,
+          tax_account:tax_account_id (
+            id,
+            name,
+            account_number,
+            profile:profile_id (
+              first_name,
+              last_name
+            ),
+            entity:entity_id (
+              name
+            )
+          ),
+          transaction:transaction_id (
+            id,
+            transaction_number
+          )
+        `
+        )
+        .eq("property_id", resolvedParams.id)
+        .order("ownership_type", { ascending: true })
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setOwnerships((data ?? []) as PropertyOwnership[]);
+    } catch (err) {
+      console.error("Failed to load ownerships:", err);
+      setOwnerships([]);
+    }
+  }, [resolvedParams.id]);
+
+  const loadTaxAccounts = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("tax_accounts")
+        .select("id, name, account_number")
+        .order("name");
+
+      if (error) throw error;
+
+      const accounts = (data ?? []) as TaxAccount[];
+      setTaxAccounts(accounts);
+      setFilteredTaxAccounts(accounts.slice(0, 10));
+    } catch (err) {
+      console.error("Failed to load tax accounts:", err);
+      setTaxAccounts([]);
+      setFilteredTaxAccounts([]);
+    }
+  }, []);
+
+  const loadBusinessNames = useCallback(async (taxAccountId: number) => {
+    try {
+      const { data, error } = await supabase
+        .from("business_names")
+        .select("id, name, tax_account_id")
+        .eq("tax_account_id", taxAccountId)
+        .order("name");
+
+      if (error) throw error;
+      return (data ?? []) as BusinessName[];
+    } catch (err) {
+      console.error("Failed to load business names:", err);
+      return [];
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -119,7 +216,7 @@ export default function PropertyViewPage({
       } catch (err) {
         if (isMounted) {
           console.error("Error loading property data:", err);
-          setError(err instanceof Error ? err.message : "Failed to load property data");
+          setError(getErrorMessage(err, "Failed to load property data"));
         }
       } finally {
         if (isMounted) {
@@ -128,13 +225,12 @@ export default function PropertyViewPage({
       }
     };
 
-    loadData();
+    void loadData();
 
     return () => {
       isMounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedParams.id]);
+  }, [loadOwnerships, loadProperty, loadTaxAccounts]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -147,102 +243,6 @@ export default function PropertyViewPage({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-
-  const loadProperty = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("*")
-        .eq("id", resolvedParams.id)
-        .single();
-
-      if (error) throw error;
-      
-      if (data) {
-        setProperty(data);
-      } else {
-        throw new Error("Property not found");
-      }
-    } catch (err: any) {
-      console.error("Failed to load property:", err);
-      throw err;
-    }
-  };
-
-  const loadOwnerships = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("property_ownership")
-        .select(
-          `
-          *,
-          tax_account:tax_account_id (
-            id,
-            name,
-            account_number,
-            profile:profile_id (
-              first_name,
-              last_name
-            ),
-            entity:entity_id (
-              name
-            )
-          ),
-          transaction:transaction_id (
-            id,
-            transaction_number
-          )
-        `
-        )
-        .eq("property_id", resolvedParams.id)
-        .order("ownership_type", { ascending: true })
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setOwnerships(data || []);
-    } catch (err) {
-      console.error("Failed to load ownerships:", err);
-      // Don't throw - ownerships loading failure shouldn't block page load
-      setOwnerships([]);
-    }
-  };
-
-  const loadTaxAccounts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("tax_accounts")
-        .select("id, name, account_number")
-        .order("name");
-
-      if (error) throw error;
-      
-      const accounts = data || [];
-      setTaxAccounts(accounts);
-      setFilteredTaxAccounts(accounts.slice(0, 10));
-    } catch (err) {
-      console.error("Failed to load tax accounts:", err);
-      setTaxAccounts([]);
-      setFilteredTaxAccounts([]);
-    }
-  };
-
-  const loadBusinessNames = async (taxAccountId: number) => {
-    try {
-      const { data, error } = await supabase
-        .from("business_names")
-        .select("id, name, tax_account_id")
-        .eq("tax_account_id", taxAccountId)
-        .order("name");
-
-      if (error) throw error;
-      return data || [];
-    } catch (err) {
-      console.error("Failed to load business names:", err);
-      return [];
-    }
-  };
-
   useEffect(() => {
     if (taxAccountSearch) {
       const filtered = taxAccounts.filter(
@@ -259,13 +259,20 @@ export default function PropertyViewPage({
 
   useEffect(() => {
     if (selectedTaxAccountId) {
-      loadBusinessNames(parseInt(selectedTaxAccountId)).then((bn) => {
-        setVestingNames(bn);
+      const taxAccountId = Number.parseInt(selectedTaxAccountId, 10);
+
+      if (Number.isNaN(taxAccountId)) {
+        setVestingNames([]);
+        return;
+      }
+
+      loadBusinessNames(taxAccountId).then((businessNames) => {
+        setVestingNames(businessNames);
       });
     } else {
       setVestingNames([]);
     }
-  }, [selectedTaxAccountId]);
+  }, [loadBusinessNames, selectedTaxAccountId]);
 
   const handleAddCurrentOwnership = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,40 +280,50 @@ export default function PropertyViewPage({
     setLoadingOwnerships(true);
 
     try {
+      const propertyId = Number.parseInt(resolvedParams.id, 10);
+
+      if (Number.isNaN(propertyId)) {
+        throw new Error("Invalid property id");
+      }
+
+      let taxAccountId: number | null = null;
+
       if (!isNonExchangeCurrent) {
         if (!selectedTaxAccountId || !selectedVestingName) {
           throw new Error("Tax Account and Vesting Name are required");
         }
-      } else {
-        if (!nonExchangeName) {
-          throw new Error("Non-exchange name is required");
+
+        taxAccountId = Number.parseInt(selectedTaxAccountId, 10);
+
+        if (Number.isNaN(taxAccountId)) {
+          throw new Error("Invalid tax account id");
         }
+      } else if (!nonExchangeName) {
+        throw new Error("Non-exchange name is required");
       }
 
-      const ownershipData: any = {
-        property_id: parseInt(resolvedParams.id),
+      const ownershipData: PropertyOwnershipInsert = {
+        property_id: propertyId,
         ownership_type: "current",
-        tax_account_id: isNonExchangeCurrent ? null : parseInt(selectedTaxAccountId),
+        tax_account_id: isNonExchangeCurrent ? null : taxAccountId,
         vesting_name: isNonExchangeCurrent ? null : selectedVestingName,
         non_exchange_name: isNonExchangeCurrent ? nonExchangeName : null,
       };
 
       const { error: ownershipError } = await supabase
         .from("property_ownership")
-        .insert([ownershipData]);
+        .insert(ownershipData);
 
       if (ownershipError) throw ownershipError;
 
-      // If added through tax account, link property to tax account's business name
-      if (!isNonExchangeCurrent && selectedTaxAccountId && selectedVestingName) {
-        // Find the business name
+      if (!isNonExchangeCurrent && taxAccountId && selectedVestingName) {
         const vestingNameObj = vestingNames.find((vn) => vn.name === selectedVestingName);
+
         if (vestingNameObj) {
-          // Update property's business_name_id
           const { error: updateError } = await supabase
             .from("properties")
             .update({ business_name_id: vestingNameObj.id })
-            .eq("id", resolvedParams.id);
+            .eq("id", propertyId);
 
           if (updateError) {
             console.error("Failed to link property to business name:", updateError);
@@ -316,11 +333,10 @@ export default function PropertyViewPage({
 
       setShowAddCurrentModal(false);
       resetCurrentForm();
-      
-      // Reload data in parallel
+
       await Promise.all([loadOwnerships(), loadProperty()]);
-    } catch (err: any) {
-      setError(err.message || "Failed to add current ownership");
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to add current ownership"));
     } finally {
       setLoadingOwnerships(false);
     }
@@ -493,7 +509,7 @@ export default function PropertyViewPage({
                 <Button
                   onClick={() => setShowAddCurrentModal(true)}
                   variant="primary"
-                  size="sm"
+                  size="small"
                 >
                   + Add Owner
                 </Button>
@@ -643,7 +659,7 @@ export default function PropertyViewPage({
                           type="radio"
                           value="tax_account"
                           checked={!isNonExchangeCurrent}
-                          onChange={(e) => {
+                          onChange={() => {
                             setIsNonExchangeCurrent(false);
                             setSelectedTaxAccountId("");
                             setSelectedVestingName("");
@@ -658,7 +674,7 @@ export default function PropertyViewPage({
                           type="radio"
                           value="non_exchange"
                           checked={isNonExchangeCurrent}
-                          onChange={(e) => {
+                          onChange={() => {
                             setIsNonExchangeCurrent(true);
                             setSelectedTaxAccountId("");
                             setSelectedVestingName("");

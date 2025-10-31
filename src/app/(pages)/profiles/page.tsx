@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Image from "next/image";
+import { getErrorMessage } from "@/lib/get-error-message";
 
 interface Profile {
   id: string;
@@ -23,6 +24,11 @@ interface Entity {
   created_at: string;
 }
 
+type NewEntityInsert = {
+  name: string;
+  email?: string;
+};
+
 export default function ProfilesPage() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -38,17 +44,46 @@ export default function ProfilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkAdminAndLoadProfiles();
-  }, []);
+  const loadProfiles = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      if (activeTab === "entities") {
+        const { data, error } = await supabase
+          .from("entities")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-  const checkAdminAndLoadProfiles = async () => {
+        if (error) throw error;
+        setEntities((data ?? []) as Entity[]);
+      } else {
+        const { data, error } = await supabase
+          .from("profile")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        setProfiles((data ?? []) as Profile[]);
+      }
+    } catch (err) {
+      console.error("Failed to load data:", err);
+      setError(
+        getErrorMessage(
+          err,
+          `Failed to load ${activeTab === "entities" ? "entities" : "profiles"}`
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab]);
+
+  const checkAdminAndLoadProfiles = useCallback(async () => {
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        await loadProfiles();
         return;
       }
 
@@ -62,45 +97,17 @@ export default function ProfilesPage() {
       setIsAdmin(adminRoles.includes(profile?.role_type || ""));
     } catch (err) {
       console.error("Error checking admin:", err);
+      setError(getErrorMessage(err, "Failed to load profiles"));
     }
-
-    await loadProfiles();
-  };
-
-  const loadProfiles = async () => {
-    try {
-      if (activeTab === "entities") {
-        const { data, error } = await supabase
-          .from("entities")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        setEntities(data || []);
-      } else {
-        // Load individual profiles only (exclude entities)
-        const { data, error } = await supabase
-          .from("profile")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        setProfiles(data || []);
-      }
-    } catch (err) {
-      console.error("Failed to load data:", err);
-      setError(`Failed to load ${activeTab === "entities" ? "entities" : "profiles"}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, []);
 
   useEffect(() => {
-    if (!loading) {
-      loadProfiles();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+    void checkAdminAndLoadProfiles();
+  }, [checkAdminAndLoadProfiles]);
+
+  useEffect(() => {
+    void loadProfiles();
+  }, [loadProfiles]);
 
   const handleCreateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,18 +116,17 @@ export default function ProfilesPage() {
 
     try {
       if (activeTab === "entities") {
-        // Create entity in entities table
-        const insertData: any = {
-          name: formData.name,
+        const insertData: NewEntityInsert = {
+          name: formData.name.trim(),
         };
 
         if (formData.email) {
-          insertData.email = formData.email;
+          insertData.email = formData.email.trim();
         }
 
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from("entities")
-          .insert([insertData])
+          .insert(insertData)
           .select()
           .single();
 
@@ -138,8 +144,13 @@ export default function ProfilesPage() {
         email: "",
       });
       await loadProfiles();
-    } catch (err: any) {
-      setError(err.message || `Failed to create ${activeTab === "entities" ? "entity" : "profile"}`);
+    } catch (err) {
+      setError(
+        getErrorMessage(
+          err,
+          `Failed to create ${activeTab === "entities" ? "entity" : "profile"}`
+        )
+      );
     }
   };
 
@@ -328,10 +339,13 @@ export default function ProfilesPage() {
                           <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
                               {profile.avatar_url ? (
-                                <img
+                                <Image
                                   src={profile.avatar_url}
                                   alt={`${profile.first_name} ${profile.last_name}`}
+                                  width={40}
+                                  height={40}
                                   className="h-full w-full object-cover"
+                                  unoptimized
                                 />
                               ) : (
                                 <span className="text-blue-600 font-medium">

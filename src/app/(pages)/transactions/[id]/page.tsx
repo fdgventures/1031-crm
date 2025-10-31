@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect, useCallback, use } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getErrorMessage } from "@/lib/get-error-message";
 
 interface Transaction {
   id: number;
@@ -63,6 +64,10 @@ interface Property {
   address: string;
 }
 
+type PropertyOwnershipRow = {
+  property: Property | Property[] | null;
+};
+
 export default function TransactionViewPage({
   params,
 }: {
@@ -77,13 +82,11 @@ export default function TransactionViewPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadTransactionData();
-  }, [resolvedParams.id]);
-
-  const loadTransactionData = async () => {
+  const loadTransactionData = useCallback(async () => {
     try {
-      // Load transaction with closing agent
+      setLoading(true);
+      setError(null);
+
       const { data: transactionData, error: transactionError } = await supabase
         .from("transactions")
         .select(
@@ -100,10 +103,16 @@ export default function TransactionViewPage({
         .eq("id", resolvedParams.id)
         .single();
 
-      if (transactionError) throw transactionError;
-      setTransaction(transactionData);
+      if (transactionError) {
+        throw transactionError;
+      }
 
-      // Load sellers
+      if (!transactionData) {
+        throw new Error("Transaction not found");
+      }
+
+      setTransaction(transactionData as Transaction);
+
       const { data: sellersData, error: sellersError } = await supabase
         .from("transaction_sellers")
         .select(
@@ -128,10 +137,12 @@ export default function TransactionViewPage({
         .eq("transaction_id", resolvedParams.id)
         .order("created_at", { ascending: true });
 
-      if (sellersError) throw sellersError;
-      setSellers(sellersData || []);
+      if (sellersError) {
+        throw sellersError;
+      }
 
-      // Load buyers
+      setSellers((sellersData ?? []) as TransactionSeller[]);
+
       const { data: buyersData, error: buyersError } = await supabase
         .from("transaction_buyers")
         .select(
@@ -148,12 +159,13 @@ export default function TransactionViewPage({
         .eq("transaction_id", resolvedParams.id)
         .order("created_at", { ascending: true });
 
-      if (buyersError) throw buyersError;
-      setBuyers(buyersData || []);
+      if (buyersError) {
+        throw buyersError;
+      }
 
-      // Load properties if this is a Property transaction
-      if (transactionData?.sale_type === "Property") {
-        // Get properties from pending ownership for this transaction
+      setBuyers((buyersData ?? []) as TransactionBuyer[]);
+
+      if (transactionData.sale_type === "Property") {
         const { data: ownershipData, error: ownershipError } = await supabase
           .from("property_ownership")
           .select(
@@ -168,22 +180,38 @@ export default function TransactionViewPage({
           .eq("transaction_id", resolvedParams.id)
           .eq("ownership_type", "pending");
 
-        if (!ownershipError && ownershipData) {
-          // Get unique properties
-          const uniqueProperties = ownershipData
-            .map((o: any) => o.property)
-            .filter((p, index, self) => p && self.findIndex((sp) => sp?.id === p.id) === index);
-
-          setProperties(uniqueProperties.filter(Boolean) as Property[]);
+        if (ownershipError) {
+          throw ownershipError;
         }
+
+        const ownershipRows = (ownershipData ?? []) as PropertyOwnershipRow[];
+        const propertyMap = new Map<number, Property>();
+
+        ownershipRows.forEach((ownership) => {
+          const propertyEntry = Array.isArray(ownership.property)
+            ? ownership.property[0]
+            : ownership.property;
+
+          if (propertyEntry) {
+            propertyMap.set(propertyEntry.id, propertyEntry);
+          }
+        });
+
+        setProperties(Array.from(propertyMap.values()));
+      } else {
+        setProperties([]);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to load transaction:", err);
-      setError(err.message || "Failed to load transaction");
+      setError(getErrorMessage(err, "Failed to load transaction"));
     } finally {
       setLoading(false);
     }
-  };
+  }, [resolvedParams.id]);
+
+  useEffect(() => {
+    void loadTransactionData();
+  }, [loadTransactionData]);
 
   if (loading) {
     return (

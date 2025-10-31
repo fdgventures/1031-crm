@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
+import { getErrorMessage } from "@/lib/get-error-message";
 
 interface Property {
   id: number;
@@ -23,11 +24,26 @@ export default function PropertiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkAdminAndLoadProperties();
+  const loadProperties = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { data, error } = await supabase
+        .from("properties")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setProperties((data ?? []) as Property[]);
+    } catch (err) {
+      console.error("Failed to load properties:", err);
+      setError(getErrorMessage(err, "Failed to load properties"));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const checkAdminAndLoadProperties = async () => {
+  const checkAdminAndLoadProperties = useCallback(async () => {
     try {
       const {
         data: { user },
@@ -41,32 +57,19 @@ export default function PropertiesPage() {
           .single();
 
         const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
-        setIsAdmin(adminRoles.includes(profile?.role_type || ""));
+        setIsAdmin(adminRoles.includes(profile?.role_type ?? ""));
       }
-
-      await loadProperties();
     } catch (err) {
       console.error("Error checking admin:", err);
-      setLoading(false);
+      setError(getErrorMessage(err, "Failed to verify permissions"));
     }
-  };
 
-  const loadProperties = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("*")
-        .order("created_at", { ascending: false });
+    await loadProperties();
+  }, [loadProperties]);
 
-      if (error) throw error;
-      setProperties(data || []);
-    } catch (err) {
-      console.error("Failed to load properties:", err);
-      setError("Failed to load properties");
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    void checkAdminAndLoadProperties();
+  }, [checkAdminAndLoadProperties]);
 
   const handleCreateProperty = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,20 +78,26 @@ export default function PropertiesPage() {
     setIsCreating(true);
 
     try {
-      const { data, error } = await supabase
+      const trimmedAddress = address.trim();
+
+      if (!trimmedAddress) {
+        throw new Error("Address is required");
+      }
+
+      const { error: insertError } = await supabase
         .from("properties")
-        .insert([{ address }])
+        .insert({ address: trimmedAddress })
         .select()
         .single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
       setSuccess("Property created successfully!");
       setShowCreateModal(false);
       setAddress("");
       await loadProperties();
-    } catch (err: any) {
-      setError(err.message || "Failed to create property");
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to create property"));
     } finally {
       setIsCreating(false);
     }

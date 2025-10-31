@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect, useCallback, useMemo, use } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Image from "next/image";
+import { getErrorMessage } from "@/lib/get-error-message";
 
 interface Profile {
   id: string;
@@ -44,6 +45,18 @@ interface Property {
   };
 }
 
+type PropertyRow = {
+  id: number;
+  address: string;
+  created_at: string;
+  business_name: {
+    name: string | null;
+    tax_account: {
+      name: string | null;
+    } | null;
+  } | null;
+};
+
 export default function ProfileViewPage({
   params,
 }: {
@@ -82,12 +95,107 @@ export default function ProfileViewPage({
   const [newBusinessName, setNewBusinessName] = useState("");
   const [creatingTaxAccount, setCreatingTaxAccount] = useState(false);
 
-  useEffect(() => {
-    checkAdminAndLoadProfile();
+  const loadProfile = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profile")
+        .select("*")
+        .eq("id", resolvedParams.id)
+        .single();
+
+      if (error) throw error;
+      setProfile(data);
+    } catch (err) {
+      console.error("Failed to load profile:", err);
+      setError(getErrorMessage(err, "Failed to load profile"));
+    } finally {
+      setLoading(false);
+    }
   }, [resolvedParams.id]);
 
-  const checkAdminAndLoadProfile = async () => {
+  const loadInvitation = useCallback(async () => {
     try {
+      const { data, error } = await supabase
+        .from("profile_invitations")
+        .select("*")
+        .eq("profile_id", resolvedParams.id)
+        .eq("status", "pending")
+        .single();
+
+      if (data && !error) {
+        setInvitation(data);
+      }
+    } catch (err) {
+      console.log("No active invitation found", err);
+    }
+  }, [resolvedParams.id]);
+
+  const loadTaxAccounts = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("tax_accounts")
+        .select("id, name, created_at")
+        .eq("profile_id", resolvedParams.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setTaxAccounts(data ?? []);
+    } catch (err) {
+      console.error("Failed to load tax accounts:", err);
+    }
+  }, [resolvedParams.id]);
+
+  const loadProperties = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("properties")
+        .select(
+          `
+          id,
+          address,
+          created_at,
+          business_name:business_name_id (
+            name,
+            tax_account:tax_account_id (
+              name
+            )
+          )
+        `
+        )
+        .not("business_name_id", "is", null)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const propertyRows = (data ?? []) as unknown as PropertyRow[];
+      const normalizedProperties: Property[] = propertyRows.map((property) => {
+        const { business_name, ...rest } = property;
+
+        if (!business_name?.name) {
+          return { ...rest };
+        }
+
+        return {
+          ...rest,
+          business_name: {
+            name: business_name.name,
+            tax_account: business_name.tax_account?.name
+              ? { name: business_name.tax_account.name }
+              : undefined,
+          },
+        };
+      });
+
+      setProperties(normalizedProperties);
+    } catch (err) {
+      console.error("Failed to load properties:", err);
+    }
+  }, []);
+
+  const checkAdminAndLoadProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
       // Проверяем, является ли пользователь админом
       const {
         data: { user },
@@ -121,45 +229,30 @@ export default function ProfileViewPage({
       await loadProperties();
     } catch (err) {
       console.error("Error checking admin:", err);
+      setError(getErrorMessage(err, "Failed to load profile"));
       setLoading(false);
     }
-  };
+  }, [loadInvitation, loadProfile, loadProperties, loadTaxAccounts, resolvedParams.id]);
 
-  const loadProfile = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("profile")
-        .select("*")
-        .eq("id", resolvedParams.id)
-        .single();
+  useEffect(() => {
+    void checkAdminAndLoadProfile();
+  }, [checkAdminAndLoadProfile]);
 
-      if (error) throw error;
-      setProfile(data);
-    } catch (err: any) {
-      console.error("Failed to load profile:", err);
-      setError(err.message || "Failed to load profile");
-    } finally {
-      setLoading(false);
+  const avatarPreviewUrl = useMemo(() => {
+    if (!avatarFile) {
+      return null;
     }
-  };
 
-  const loadInvitation = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("profile_invitations")
-        .select("*")
-        .eq("profile_id", resolvedParams.id)
-        .eq("status", "pending")
-        .single();
+    return URL.createObjectURL(avatarFile);
+  }, [avatarFile]);
 
-      if (data && !error) {
-        setInvitation(data);
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl) {
+        URL.revokeObjectURL(avatarPreviewUrl);
       }
-    } catch (err) {
-      // Приглашение не найдено - это нормально
-      console.log("No active invitation found");
-    }
-  };
+    };
+  }, [avatarPreviewUrl]);
 
   const handleCreateInvitation = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,9 +297,9 @@ export default function ProfileViewPage({
       );
       setShowInviteForm(false);
       setInviteEmail("");
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to create invitation:", err);
-      setInviteError(err.message || "Failed to create invitation");
+      setInviteError(getErrorMessage(err, "Failed to create invitation"));
     } finally {
       setInviteLoading(false);
     }
@@ -218,56 +311,6 @@ export default function ProfileViewPage({
       navigator.clipboard.writeText(link);
       setInviteSuccess("Link copied to clipboard!");
       setTimeout(() => setInviteSuccess(null), 3000);
-    }
-  };
-
-  const loadTaxAccounts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("tax_accounts")
-        .select("id, name, created_at")
-        .eq("profile_id", resolvedParams.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setTaxAccounts(data || []);
-    } catch (err) {
-      console.error("Failed to load tax accounts:", err);
-    }
-  };
-
-  const loadProperties = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("properties")
-        .select(
-          `
-          id,
-          address,
-          created_at,
-          business_name:business_name_id (
-            name,
-            tax_account:tax_account_id (
-              name
-            )
-          )
-        `
-        )
-        .not("business_name_id", "is", null)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Фильтруем только properties, принадлежащие tax accounts этого профиля
-      const taxAccountIds = taxAccounts.map((ta) => ta.id);
-      const filteredProperties =
-        data?.filter((p: any) => {
-          return p.business_name?.tax_account?.name;
-        }) || [];
-
-      setProperties(filteredProperties as Property[]);
-    } catch (err) {
-      console.error("Failed to load properties:", err);
     }
   };
 
@@ -487,10 +530,13 @@ export default function ProfileViewPage({
               <div className="flex items-center">
                 <div className="h-24 w-24 rounded-full bg-white flex items-center justify-center mr-6 overflow-hidden">
                   {profile.avatar_url ? (
-                    <img
+                    <Image
                       src={profile.avatar_url}
                       alt={`${profile.first_name} ${profile.last_name}`}
+                      width={96}
+                      height={96}
                       className="h-full w-full object-cover"
+                      unoptimized
                     />
                   ) : (
                     <span className="text-3xl font-bold text-blue-600">
@@ -896,17 +942,23 @@ export default function ProfileViewPage({
                     </label>
                     <div className="flex items-center space-x-4">
                       <div className="h-24 w-24 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
-                        {avatarFile ? (
-                          <img
-                            src={URL.createObjectURL(avatarFile)}
+                        {avatarPreviewUrl ? (
+                          <Image
+                            src={avatarPreviewUrl}
                             alt="Preview"
+                            width={96}
+                            height={96}
                             className="h-full w-full object-cover"
+                            unoptimized
                           />
                         ) : profile?.avatar_url ? (
-                          <img
+                          <Image
                             src={profile.avatar_url}
                             alt="Current avatar"
+                            width={96}
+                            height={96}
                             className="h-full w-full object-cover"
+                            unoptimized
                           />
                         ) : (
                           <span className="text-2xl font-bold text-gray-400">

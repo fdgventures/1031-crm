@@ -1,65 +1,83 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
+import { getErrorMessage } from "@/lib/get-error-message";
+
+type AuthUser = {
+  id: string;
+  email?: string | null;
+};
+
+type DashboardProfile = {
+  id: string;
+  email?: string | null;
+  role_type?: string | null;
+  is_verified?: boolean;
+  created_at?: string;
+};
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
-      // Даем время на восстановление сессии
+      setIsLoading(true);
+
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const {
-        data: { user },
+        data: { user: authUser },
+        error: authError,
       } = await supabase.auth.getUser();
 
-      if (!user) {
-        setIsLoading(false);
+      if (authError) {
+        throw authError;
+      }
+
+      if (!authUser) {
+        setUser(null);
+        setProfile(null);
         router.push("/admin/signin");
         return;
       }
 
-      setUser(user);
+      setUser({ id: authUser.id, email: authUser.email });
 
-      try {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
+      const { data: profileData, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .single();
 
-        if (profile) {
-          setProfile(profile);
-        }
-      } catch (profileErr) {
-        console.error("Profile error:", profileErr);
-        // Продолжаем даже если профиль не найден
+      if (!profileError && profileData) {
+        setProfile(profileData as DashboardProfile);
+      } else if (profileError) {
+        console.error("Profile error:", profileError);
       }
-
-      setIsLoading(false);
     } catch (err) {
       console.error("Auth check error:", err);
+      router.push("/admin/signin");
+    } finally {
       setIsLoading(false);
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    void checkAuth();
+  }, [checkAuth]);
 
   const handleSignOut = async () => {
     try {
       await supabase.auth.signOut();
       router.push("/");
     } catch (err) {
-      console.error("Sign out error:", err);
+      console.error("Sign out error:", getErrorMessage(err, "Failed to sign out"));
     }
   };
 
@@ -149,14 +167,16 @@ export default function AdminDashboard() {
                 <strong>Role:</strong>{" "}
                 {profile?.role_type === "workspace_owner"
                   ? "👑 Workspace Owner"
-                  : profile?.role_type}
+                  : profile?.role_type ?? "Unknown"}
               </p>
               <p>
                 <strong>Verified:</strong> {profile?.is_verified ? "Yes" : "No"}
               </p>
               <p>
                 <strong>Created:</strong>{" "}
-                {new Date(profile?.created_at).toLocaleDateString()}
+                {profile?.created_at
+                  ? new Date(profile.created_at).toLocaleDateString()
+                  : "—"}
               </p>
             </div>
           </div>

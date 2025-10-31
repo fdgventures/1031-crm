@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Button, Input } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 
 interface Transaction {
@@ -51,6 +51,35 @@ interface TransactionBuyer {
   is_non_exchange?: boolean; // Flag to identify non-exchange buyers
 }
 
+type ExchangeWithTaxAccount = {
+  tax_account:
+    | null
+    | {
+        profile_id: number | null;
+      }
+    | Array<{
+        profile_id: number | null;
+      }>;
+};
+
+type NewTransactionInsert = {
+  transaction_number: string;
+  contract_purchase_price: number;
+  contract_date: string;
+  sale_type: "Property" | "Entity";
+  pdf_contract_url?: string | null;
+  closing_agent_profile_id?: number;
+};
+
+type PendingOwnershipInsert = {
+  property_id: number;
+  ownership_type: "pending";
+  transaction_id: number;
+  tax_account_id?: number;
+  vesting_name?: string;
+  non_exchange_name?: string | null;
+};
+
 export default function TransactionsPage() {
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -78,7 +107,6 @@ export default function TransactionsPage() {
   const [filteredProfiles, setFilteredProfiles] = useState<Profile[]>([]);
   const [profilesWithExchanges, setProfilesWithExchanges] = useState<Set<number>>(new Set());
   const [taxAccounts, setTaxAccounts] = useState<TaxAccount[]>([]);
-  const [filteredTaxAccounts, setFilteredTaxAccounts] = useState<TaxAccount[]>([]);
   const [businessNames, setBusinessNames] = useState<{ [key: string]: BusinessName[] }>({});
   const [availableProperties, setAvailableProperties] = useState<Array<{ id: number; address: string }>>([]);
   const [filteredProperties, setFilteredProperties] = useState<Array<{ id: number; address: string }>>([]);
@@ -252,16 +280,18 @@ export default function TransactionsPage() {
 
       // Extract unique profile IDs from tax accounts that have exchanges
       const profileIdsWithExchanges = new Set<number>();
-      if (exchangesData) {
-        exchangesData.forEach((exchange: any) => {
-          if (exchange.tax_account && typeof exchange.tax_account === 'object') {
-            const taxAccount = exchange.tax_account as { profile_id: number | null };
-            if (taxAccount.profile_id) {
-              profileIdsWithExchanges.add(taxAccount.profile_id);
-            }
-          }
-        });
-      }
+      const exchangesRows = (exchangesData ?? []) as ExchangeWithTaxAccount[];
+
+      exchangesRows.forEach((exchange) => {
+        const taxAccountInfo = exchange.tax_account;
+        const profileId = Array.isArray(taxAccountInfo)
+          ? taxAccountInfo[0]?.profile_id
+          : taxAccountInfo?.profile_id;
+
+        if (typeof profileId === "number" && !Number.isNaN(profileId)) {
+          profileIdsWithExchanges.add(profileId);
+        }
+      });
 
       setProfilesWithExchanges(profileIdsWithExchanges);
     } catch (err) {
@@ -692,30 +722,33 @@ export default function TransactionsPage() {
       // Generate transaction number
       const transactionNumber = await generateTransactionNumber(saleType);
 
-      // Create transaction
-      const transactionData: any = {
+      const parsedPurchasePrice = Number.parseFloat(contractPurchasePrice);
+
+      if (Number.isNaN(parsedPurchasePrice) || parsedPurchasePrice <= 0) {
+        throw new Error("Contract Purchase Price must be a positive number");
+      }
+
+      const transactionInsert: NewTransactionInsert = {
         transaction_number: transactionNumber,
-        contract_purchase_price: parseFloat(contractPurchasePrice),
+        contract_purchase_price: parsedPurchasePrice,
         contract_date: contractDate,
         sale_type: saleType,
       };
 
       if (pdfUrl) {
-        transactionData.pdf_contract_url = pdfUrl;
+        transactionInsert.pdf_contract_url = pdfUrl;
       }
 
       if (closingAgentId) {
-        transactionData.closing_agent_profile_id = parseInt(closingAgentId);
-      }
-
-      // Add property_id if sale_type is Property
-      if (saleType === "Property" && propertyId) {
-        // Note: property_id is not in transactions table anymore, but we'll use it for ownership
+        const parsedClosingAgentId = Number.parseInt(closingAgentId, 10);
+        if (!Number.isNaN(parsedClosingAgentId)) {
+          transactionInsert.closing_agent_profile_id = parsedClosingAgentId;
+        }
       }
 
       const { data: transaction, error: transactionError } = await supabase
         .from("transactions")
-        .insert(transactionData)
+        .insert(transactionInsert)
         .select()
         .single();
 
@@ -865,9 +898,15 @@ export default function TransactionsPage() {
 
       // Create pending ownership for buyers if this is a Property transaction
       if (saleType === "Property" && propertyId) {
+        const parsedPropertyId = Number.parseInt(propertyId, 10);
+
+        if (Number.isNaN(parsedPropertyId)) {
+          throw new Error("Invalid property id");
+        }
+
         const pendingOwnershipPromises = buyers.map(async (buyer) => {
-          const ownershipData: any = {
-            property_id: parseInt(propertyId),
+          const ownershipData: PendingOwnershipInsert = {
+            property_id: parsedPropertyId,
             ownership_type: "pending",
             transaction_id: transaction.id,
           };
