@@ -91,7 +91,6 @@ export default function AdminRegisterPage() {
       }
 
       // Определяем роль в зависимости от email
-      const isWorkspaceOwner = authData.user.email === "fdgventures@gmail.com";
       const roleType = isWorkspaceOwner
         ? "workspace_owner"
         : "platform_super_admin";
