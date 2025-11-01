@@ -11,7 +11,7 @@ export interface AuditLog {
   old_value: string | null;
   new_value: string | null;
   changed_by: string | null;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -33,6 +33,6 @@ export interface CreateAuditLogInput {
   field_name?: string;
   old_value?: string;
   new_value?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 

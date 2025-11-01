@@ -329,7 +329,7 @@ export default function PropertyViewPage({
         
         const { error: auditError } = await supabase.from('audit_logs').insert({
           entity_type: 'property',
-          entity_id: parseInt(propertyId),
+          entity_id: propertyId,
           action_type: 'update',
           field_name: 'current_ownership',
           old_value: null,
@@ -352,12 +352,6 @@ export default function PropertyViewPage({
         const vestingNameObj = vestingNames.find((vn) => vn.name === selectedVestingName);
 
         if (vestingNameObj) {
-          // Get current user for audit log
-          const { data: { user } } = await supabase.auth.getUser();
-          
-          // Store old value
-          const oldBusinessNameId = property?.business_name_id || null;
-          
           const { error: updateError } = await supabase
             .from("properties")
             .update({ business_name_id: vestingNameObj.id })
@@ -365,23 +359,6 @@ export default function PropertyViewPage({
 
           if (updateError) {
             console.error("Failed to link property to business name:", updateError);
-          } else {
-            // Create audit log for the change
-            if (oldBusinessNameId !== vestingNameObj.id) {
-              const { error: auditError } = await supabase.from('audit_logs').insert({
-                entity_type: 'property',
-                entity_id: parseInt(propertyId),
-                action_type: 'update',
-                field_name: 'business_name_id',
-                old_value: oldBusinessNameId?.toString() || null,
-                new_value: vestingNameObj.id.toString(),
-                changed_by: user?.id || null,
-              });
-
-              if (!auditError) {
-                setLogRefreshTrigger(Date.now());
-              }
-            }
           }
         }
       }

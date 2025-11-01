@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase';
 import type { AuditLogView, AuditLogGroupedByDay, AuditLogEntityType } from '@/types/audit-log.types';
 import Link from 'next/link';
@@ -15,15 +15,7 @@ export default function LogsPage() {
     []
   );
 
-  useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-    loadLogs();
-  }, [filter, supabase]);
-
-  async function loadLogs() {
+  const loadLogs = useCallback(async () => {
     if (!supabase) return;
     
     try {
@@ -49,7 +41,15 @@ export default function LogsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [supabase, filter]);
+
+  useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+    loadLogs();
+  }, [supabase, loadLogs]);
 
   const groupedLogs = useMemo((): AuditLogGroupedByDay[] => {
     const groups: Record<string, AuditLogView[]> = {};
@@ -76,7 +76,7 @@ export default function LogsPage() {
   }, [logs]);
 
   function getEntityUrl(entityType: string, entityId: number): string {
-    const typeMap: Record<string, string> = {
+    const typeMap: Record<string, string | null> = {
       profile: 'profiles',
       tax_account: 'tax-accounts',
       transaction: 'transactions',

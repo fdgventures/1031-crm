@@ -1,12 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase';
 import type { 
-  Task, 
   TaskWithDetails, 
   TaskEntityType, 
-  CreateTaskInput,
   TaskNote,
   TaskAttachment 
 } from '@/types/task.types';
@@ -43,6 +41,35 @@ export default function TaskManager({ entityType, entityId, entityName, onLogCre
     () => (isSupabaseConfigured ? getSupabaseClient() : null),
     []
   );
+
+  const loadTasks = useCallback(async () => {
+    if (!supabase) return;
+    
+    try {
+      setLoading(true);
+      
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          assignments:task_assignments(*),
+          attachments:task_attachments(*),
+          notes:task_notes(*)
+        `)
+        .eq('entity_type', entityType)
+        .eq('entity_id', entityId)
+        .order('due_date', { ascending: true });
+
+      if (tasksError) throw tasksError;
+      
+      setTasks(tasksData || []);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+      alert('Error loading tasks');
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase, entityType, entityId]);
 
   useEffect(() => {
     if (!supabase) {
@@ -111,36 +138,7 @@ export default function TaskManager({ entityType, entityId, entityName, onLogCre
     });
 
     return () => subscription.unsubscribe();
-  }, [entityType, entityId, supabase]);
-
-  async function loadTasks() {
-    if (!supabase) return;
-    
-    try {
-      setLoading(true);
-      
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('tasks')
-        .select(`
-          *,
-          assignments:task_assignments(*),
-          attachments:task_attachments(*),
-          notes:task_notes(*)
-        `)
-        .eq('entity_type', entityType)
-        .eq('entity_id', entityId)
-        .order('due_date', { ascending: true });
-
-      if (tasksError) throw tasksError;
-      
-      setTasks(tasksData || []);
-    } catch (error) {
-      console.error('Error loading tasks:', error);
-      alert('Error loading tasks');
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [supabase, loadTasks]);
 
   async function handleCreateTask(e: React.FormEvent) {
     e.preventDefault();

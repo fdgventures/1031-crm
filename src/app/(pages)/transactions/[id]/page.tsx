@@ -237,8 +237,13 @@ export default function TransactionViewPage({
             <h2 className="text-2xl font-bold text-red-600 mb-4">
               Error Loading Transaction
             </h2>
-            <p className="text-gray-600 mb-6">{error || "Transaction not found"}</p>
-            <Button onClick={() => router.push("/transactions")} variant="primary">
+            <p className="text-gray-600 mb-6">
+              {error || "Transaction not found"}
+            </p>
+            <Button
+              onClick={() => router.push("/transactions")}
+              variant="primary"
+            >
               Back to Transactions
             </Button>
           </div>
@@ -251,7 +256,10 @@ export default function TransactionViewPage({
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
-          <Button onClick={() => router.push("/transactions")} variant="outline">
+          <Button
+            onClick={() => router.push("/transactions")}
+            variant="outline"
+          >
             ← Back to Transactions
           </Button>
         </div>
@@ -264,7 +272,9 @@ export default function TransactionViewPage({
                 <h1 className="text-4xl font-bold text-white">
                   {transaction.transaction_number}
                 </h1>
-                <p className="text-blue-100 mt-2">{transaction.sale_type} Transaction</p>
+                <p className="text-blue-100 mt-2">
+                  {transaction.sale_type} Transaction
+                </p>
               </div>
             </div>
           </div>
@@ -279,14 +289,17 @@ export default function TransactionViewPage({
                 <h3 className="text-sm font-medium text-gray-500 mb-2">
                   Transaction Number
                 </h3>
-                <p className="text-lg text-gray-900">{transaction.transaction_number}</p>
+                <p className="text-lg text-gray-900">
+                  {transaction.transaction_number}
+                </p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-2">
                   Contract Purchase Price
                 </h3>
                 <p className="text-lg text-gray-900">
-                  ${transaction.contract_purchase_price.toLocaleString("en-US", {
+                  $
+                  {transaction.contract_purchase_price.toLocaleString("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
@@ -301,7 +314,9 @@ export default function TransactionViewPage({
                 </p>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Sale Type</h3>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                  Sale Type
+                </h3>
                 <p className="text-lg text-gray-900">{transaction.sale_type}</p>
               </div>
               {transaction.closing_agent && (
@@ -336,7 +351,9 @@ export default function TransactionViewPage({
                 </div>
               )}
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Created</h3>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                  Created
+                </h3>
                 <p className="text-lg text-gray-900">
                   {new Date(transaction.created_at).toLocaleString()}
                 </p>
@@ -349,7 +366,9 @@ export default function TransactionViewPage({
         {transaction.sale_type === "Property" && properties.length > 0 && (
           <div className="bg-white shadow rounded-lg mb-6">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">Properties</h2>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Properties
+              </h2>
             </div>
             <div className="p-6">
               <div className="space-y-3">
@@ -361,7 +380,9 @@ export default function TransactionViewPage({
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900">{property.address}</p>
+                        <p className="font-medium text-gray-900">
+                          {property.address}
+                        </p>
                       </div>
                       <Link
                         href={`/properties/${property.id}`}
@@ -390,7 +411,9 @@ export default function TransactionViewPage({
             </div>
             <div className="p-6">
               {sellers.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No sellers found</p>
+                <p className="text-gray-500 text-center py-4">
+                  No sellers found
+                </p>
               ) : (
                 <div className="space-y-4">
                   {sellers.map((seller, index) => (
@@ -459,7 +482,9 @@ export default function TransactionViewPage({
             </div>
             <div className="p-6">
               {buyers.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No buyers found</p>
+                <p className="text-gray-500 text-center py-4">
+                  No buyers found
+                </p>
               ) : (
                 <div className="space-y-4">
                   {buyers.map((buyer, index) => (
@@ -468,7 +493,9 @@ export default function TransactionViewPage({
                       className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
                     >
                       <div className="flex justify-between items-start mb-3">
-                        <h3 className="font-medium text-gray-900">Buyer {index + 1}</h3>
+                        <h3 className="font-medium text-gray-900">
+                          Buyer {index + 1}
+                        </h3>
                         <span className="text-sm font-medium text-gray-700">
                           {buyer.contract_percent}%
                         </span>
@@ -478,7 +505,9 @@ export default function TransactionViewPage({
                           <p className="font-medium text-gray-900">
                             {buyer.non_exchange_name}
                           </p>
-                          <p className="text-sm text-gray-500 mt-1">Non-exchange buyer</p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Non-exchange buyer
+                          </p>
                         </div>
                       ) : buyer.profile ? (
                         <div>

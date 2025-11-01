@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase';
 import type { TaskWithDetails } from '@/types/task.types';
 import Link from 'next/link';
@@ -15,12 +15,7 @@ export default function WorkQueuePage() {
     []
   );
 
-  useEffect(() => {
-    if (!supabase) return;
-    loadTasks();
-  }, [filter, supabase]);
-
-  async function loadTasks() {
+  const loadTasks = useCallback(async () => {
     if (!supabase) return;
     
     try {
@@ -51,7 +46,12 @@ export default function WorkQueuePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [supabase, filter]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    loadTasks();
+  }, [supabase, loadTasks]);
 
   async function handleToggleStatus(taskId: number, currentStatus: string) {
     if (!supabase) return;

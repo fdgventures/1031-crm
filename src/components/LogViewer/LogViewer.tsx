@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase';
 import type { AuditLogView, AuditLogGroupedByDay, AuditLogEntityType } from '@/types/audit-log.types';
 
@@ -20,15 +20,7 @@ export default function LogViewer({ entityType, entityId, entityName, refreshTri
     []
   );
 
-  useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-    loadLogs();
-  }, [entityType, entityId, supabase, refreshTrigger]);
-
-  async function loadLogs() {
+  const loadLogs = useCallback(async () => {
     if (!supabase) return;
     
     try {
@@ -49,7 +41,15 @@ export default function LogViewer({ entityType, entityId, entityName, refreshTri
     } finally {
       setLoading(false);
     }
-  }
+  }, [supabase, entityType, entityId]);
+
+  useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+    loadLogs();
+  }, [supabase, loadLogs, refreshTrigger]);
 
   const groupedLogs = useMemo((): AuditLogGroupedByDay[] => {
     const groups: Record<string, AuditLogView[]> = {};
