@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -15,15 +15,17 @@ export default function HeaderUser() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [profileId, setProfileId] = useState<number | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-
-  if (!isSupabaseConfigured) {
-    return null;
-  }
-
-  const supabase = getSupabaseClient();
   const router = useRouter();
+  const supabase = useMemo(
+    () => (isSupabaseConfigured ? getSupabaseClient() : null),
+    []
+  );
 
   useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
     const checkUser = async () => {
       try {
         const {
@@ -38,7 +40,11 @@ export default function HeaderUser() {
             .eq("id", user.id)
             .single();
 
-          const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
+          const adminRoles = [
+            "workspace_owner",
+            "platform_super_admin",
+            "admin",
+          ];
           setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
 
           const { data: profileData } = await supabase
@@ -81,7 +87,11 @@ export default function HeaderUser() {
             .eq("id", session.user.id)
             .single();
 
-          const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
+          const adminRoles = [
+            "workspace_owner",
+            "platform_super_admin",
+            "admin",
+          ];
           setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
 
           const { data: profileData } = await supabase
@@ -113,6 +123,10 @@ export default function HeaderUser() {
 
     return () => subscription.unsubscribe();
   }, [router, supabase]);
+
+  if (!supabase) {
+    return null;
+  }
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();

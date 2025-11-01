@@ -23,7 +23,6 @@ const createFallbackClient = (): SupabaseClient => {
       "Supabase environment variables are missing. Please set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and NEXT_PUBLIC_SUPABASE_ANON_KEY (or SUPABASE_ANON_KEY).";
 
     if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
       console.warn(message);
     }
 
