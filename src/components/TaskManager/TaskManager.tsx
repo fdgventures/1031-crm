@@ -15,9 +15,10 @@ interface TaskManagerProps {
   entityType: TaskEntityType;
   entityId: number;
   entityName?: string;
+  onLogCreate?: () => void; // Callback to trigger log refresh
 }
 
-export default function TaskManager({ entityType, entityId, entityName }: TaskManagerProps) {
+export default function TaskManager({ entityType, entityId, entityName, onLogCreate }: TaskManagerProps) {
   const [tasks, setTasks] = useState<TaskWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -192,6 +193,25 @@ export default function TaskManager({ entityType, entityId, entityName }: TaskMa
       setFormData({ title: '', due_date: '', assignee_ids: [] });
       setShowCreateForm(false);
       await loadTasks();
+      
+      // Create audit log for task creation
+      if (task && user) {
+        const { error: auditError } = await supabase.from('audit_logs').insert({
+          entity_type: entityType,
+          entity_id: entityId,
+          action_type: 'update',
+          field_name: 'task_created',
+          old_value: null,
+          new_value: formData.title,
+          changed_by: user.id,
+          metadata: { task_id: task.id },
+        });
+
+        if (!auditError && onLogCreate) {
+          onLogCreate();
+        }
+      }
+
       alert('Task created successfully');
     } catch (error) {
       console.error('Error creating task:', error);
@@ -204,6 +224,7 @@ export default function TaskManager({ entityType, entityId, entityName }: TaskMa
     
     try {
       const newStatus = currentStatus === 'pending' ? 'completed' : 'pending';
+      const { data: { user } } = await supabase.auth.getUser();
       
       const { error } = await supabase
         .from('tasks')
@@ -213,6 +234,24 @@ export default function TaskManager({ entityType, entityId, entityName }: TaskMa
       if (error) throw error;
       
       await loadTasks();
+
+      // Create audit log
+      if (user) {
+        const { error: auditError } = await supabase.from('audit_logs').insert({
+          entity_type: entityType,
+          entity_id: entityId,
+          action_type: 'update',
+          field_name: 'task_status',
+          old_value: currentStatus,
+          new_value: newStatus,
+          changed_by: user.id,
+          metadata: { task_id: taskId },
+        });
+
+        if (!auditError && onLogCreate) {
+          onLogCreate();
+        }
+      }
     } catch (error) {
       console.error('Error updating task status:', error);
       alert('Error updating status');
@@ -224,6 +263,11 @@ export default function TaskManager({ entityType, entityId, entityName }: TaskMa
     if (!supabase) return;
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Get task title before deleting
+      const task = tasks.find(t => t.id === taskId);
+      
       const { error } = await supabase
         .from('tasks')
         .delete()
@@ -232,6 +276,25 @@ export default function TaskManager({ entityType, entityId, entityName }: TaskMa
       if (error) throw error;
       
       await loadTasks();
+
+      // Create audit log
+      if (user && task) {
+        const { error: auditError } = await supabase.from('audit_logs').insert({
+          entity_type: entityType,
+          entity_id: entityId,
+          action_type: 'update',
+          field_name: 'task_deleted',
+          old_value: task.title,
+          new_value: null,
+          changed_by: user.id,
+          metadata: { task_id: taskId },
+        });
+
+        if (!auditError && onLogCreate) {
+          onLogCreate();
+        }
+      }
+
       alert('Task deleted');
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -243,6 +306,9 @@ export default function TaskManager({ entityType, entityId, entityName }: TaskMa
     if (!supabase) return;
     
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const task = tasks.find(t => t.id === taskId);
+      
       const { error } = await supabase
         .from('tasks')
         .update({
@@ -252,6 +318,48 @@ export default function TaskManager({ entityType, entityId, entityName }: TaskMa
         .eq('id', taskId);
 
       if (error) throw error;
+      
+      // Create audit logs for changed fields
+      const auditLogs = [];
+      
+      if (task && user) {
+        if (task.title !== formData.title) {
+          auditLogs.push({
+            entity_type: entityType,
+            entity_id: entityId,
+            action_type: 'update',
+            field_name: 'task_title',
+            old_value: task.title,
+            new_value: formData.title,
+            changed_by: user.id,
+            metadata: { task_id: taskId },
+          });
+        }
+        
+        const oldDueDate = task.due_date ? new Date(task.due_date).toLocaleDateString() : null;
+        const newDueDate = formData.due_date ? new Date(formData.due_date).toLocaleDateString() : null;
+        
+        if (oldDueDate !== newDueDate) {
+          auditLogs.push({
+            entity_type: entityType,
+            entity_id: entityId,
+            action_type: 'update',
+            field_name: 'task_due_date',
+            old_value: oldDueDate,
+            new_value: newDueDate,
+            changed_by: user.id,
+            metadata: { task_id: taskId },
+          });
+        }
+      }
+
+      if (auditLogs.length > 0) {
+        const { error: auditError } = await supabase.from('audit_logs').insert(auditLogs);
+        
+        if (!auditError && onLogCreate) {
+          onLogCreate();
+        }
+      }
       
       setEditingTask(null);
       setFormData({ title: '', due_date: '', assignee_ids: [] });

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
+import { LogViewer } from "@/components/LogViewer";
 
 interface Property {
   id: number;
@@ -88,6 +89,7 @@ export default function PropertyViewPage({
   // Tax accounts and business names
   const [taxAccounts, setTaxAccounts] = useState<TaxAccount[]>([]);
   const [filteredTaxAccounts, setFilteredTaxAccounts] = useState<TaxAccount[]>([]);
+  const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
 
   const loadProperty = useCallback(async () => {
     const { data, error } = await supabase
@@ -313,16 +315,49 @@ export default function PropertyViewPage({
         non_exchange_name: isNonExchangeCurrent ? nonExchangeName : null,
       };
 
-      const { error: ownershipError } = await supabase
+      const { error: ownershipError, data: newOwnership } = await supabase
         .from("property_ownership")
-        .insert(ownershipData);
+        .insert(ownershipData)
+        .select()
+        .single();
 
       if (ownershipError) throw ownershipError;
+
+      // Create audit log for adding ownership
+      if (newOwnership) {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        const { error: auditError } = await supabase.from('audit_logs').insert({
+          entity_type: 'property',
+          entity_id: parseInt(propertyId),
+          action_type: 'update',
+          field_name: 'current_ownership',
+          old_value: null,
+          new_value: isNonExchangeCurrent 
+            ? nonExchangeName 
+            : `${selectedVestingName || 'Tax Account'} (ID: ${taxAccountId})`,
+          changed_by: user?.id || null,
+          metadata: {
+            ownership_id: newOwnership.id,
+            ownership_type: 'current',
+          },
+        });
+
+        if (!auditError) {
+          setLogRefreshTrigger(Date.now());
+        }
+      }
 
       if (!isNonExchangeCurrent && taxAccountId && selectedVestingName) {
         const vestingNameObj = vestingNames.find((vn) => vn.name === selectedVestingName);
 
         if (vestingNameObj) {
+          // Get current user for audit log
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          // Store old value
+          const oldBusinessNameId = property?.business_name_id || null;
+          
           const { error: updateError } = await supabase
             .from("properties")
             .update({ business_name_id: vestingNameObj.id })
@@ -330,6 +365,23 @@ export default function PropertyViewPage({
 
           if (updateError) {
             console.error("Failed to link property to business name:", updateError);
+          } else {
+            // Create audit log for the change
+            if (oldBusinessNameId !== vestingNameObj.id) {
+              const { error: auditError } = await supabase.from('audit_logs').insert({
+                entity_type: 'property',
+                entity_id: parseInt(propertyId),
+                action_type: 'update',
+                field_name: 'business_name_id',
+                old_value: oldBusinessNameId?.toString() || null,
+                new_value: vestingNameObj.id.toString(),
+                changed_by: user?.id || null,
+              });
+
+              if (!auditError) {
+                setLogRefreshTrigger(Date.now());
+              }
+            }
           }
         }
       }
@@ -807,6 +859,17 @@ export default function PropertyViewPage({
           entityType="property"
           entityId={parseInt(id)}
           entityName={property?.address}
+          onLogCreate={() => setLogRefreshTrigger(Date.now())}
+        />
+      </div>
+
+      {/* Activity Log Section */}
+      <div className="mt-6">
+        <LogViewer
+          entityType="property"
+          entityId={parseInt(id)}
+          entityName={property?.address}
+          refreshTrigger={logRefreshTrigger}
         />
       </div>
     </div>

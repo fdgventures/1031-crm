@@ -8,6 +8,7 @@ import Image from "next/image";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
+import { LogViewer } from "@/components/LogViewer";
 
 interface Profile {
   id: string;
@@ -97,6 +98,7 @@ export default function ProfileViewPage({
   const [newTaxAccountName, setNewTaxAccountName] = useState("");
   const [newBusinessName, setNewBusinessName] = useState("");
   const [creatingTaxAccount, setCreatingTaxAccount] = useState(false);
+  const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -459,6 +461,17 @@ export default function ProfileViewPage({
         avatarUrl = await uploadAvatar();
       }
 
+      // Get current user for audit log
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Store old values for audit log
+      const oldValues = {
+        first_name: profile?.first_name,
+        last_name: profile?.last_name,
+        email: profile?.email,
+        avatar_url: profile?.avatar_url,
+      };
+
       // Update profile
       const { error } = await supabase
         .from("profile")
@@ -471,6 +484,71 @@ export default function ProfileViewPage({
         .eq("id", id);
 
       if (error) throw error;
+
+      // Create audit logs for changed fields
+      const auditLogs = [];
+      
+      if (oldValues.first_name !== editFirstName) {
+        auditLogs.push({
+          entity_type: 'profile',
+          entity_id: parseInt(id),
+          action_type: 'update',
+          field_name: 'first_name',
+          old_value: oldValues.first_name || null,
+          new_value: editFirstName,
+          changed_by: user?.id || null,
+        });
+      }
+      
+      if (oldValues.last_name !== editLastName) {
+        auditLogs.push({
+          entity_type: 'profile',
+          entity_id: parseInt(id),
+          action_type: 'update',
+          field_name: 'last_name',
+          old_value: oldValues.last_name || null,
+          new_value: editLastName,
+          changed_by: user?.id || null,
+        });
+      }
+      
+      if (oldValues.email !== editEmail) {
+        auditLogs.push({
+          entity_type: 'profile',
+          entity_id: parseInt(id),
+          action_type: 'update',
+          field_name: 'email',
+          old_value: oldValues.email || null,
+          new_value: editEmail,
+          changed_by: user?.id || null,
+        });
+      }
+      
+      if (oldValues.avatar_url !== avatarUrl && avatarFile) {
+        auditLogs.push({
+          entity_type: 'profile',
+          entity_id: parseInt(id),
+          action_type: 'update',
+          field_name: 'avatar_url',
+          old_value: oldValues.avatar_url || null,
+          new_value: avatarUrl || null,
+          changed_by: user?.id || null,
+        });
+      }
+
+      // Insert audit logs
+      if (auditLogs.length > 0) {
+        const { error: auditError } = await supabase
+          .from('audit_logs')
+          .insert(auditLogs);
+        
+        if (auditError) {
+          console.error('Failed to create audit logs:', auditError);
+        } else {
+          // Trigger log refresh
+          setLogRefreshTrigger(Date.now());
+        }
+      }
 
       setEditSuccess("Profile updated successfully!");
       await loadProfile(); // Reload profile to show changes
@@ -1179,6 +1257,17 @@ export default function ProfileViewPage({
           entityType="profile"
           entityId={parseInt(id)}
           entityName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
+          onLogCreate={() => setLogRefreshTrigger(Date.now())}
+        />
+      </div>
+
+      {/* Activity Log Section */}
+      <div className="mt-6">
+        <LogViewer
+          entityType="profile"
+          entityId={parseInt(id)}
+          entityName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
+          refreshTrigger={logRefreshTrigger}
         />
       </div>
     </div>

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
+import { LogViewer } from "@/components/LogViewer";
 
 interface Exchange {
   id: number;
@@ -61,6 +62,7 @@ export default function ExchangeViewPage({
   const [transactions, setTransactions] = useState<ExchangeTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
 
   const loadExchangeData = useCallback(async () => {
     try {
@@ -408,6 +410,17 @@ export default function ExchangeViewPage({
             entityType="exchange"
             entityId={parseInt(id)}
             entityName={exchange?.exchange_number}
+            onLogCreate={() => setLogRefreshTrigger(Date.now())}
+          />
+        </div>
+
+        {/* Activity Log Section */}
+        <div className="mt-6">
+          <LogViewer
+            entityType="exchange"
+            entityId={parseInt(id)}
+            entityName={exchange?.exchange_number}
+            refreshTrigger={logRefreshTrigger}
           />
         </div>
       </div>

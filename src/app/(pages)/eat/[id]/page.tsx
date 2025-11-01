@@ -1,9 +1,14 @@
+'use client';
+
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
-import { use } from "react";
+import { LogViewer } from "@/components/LogViewer";
+import { use, useState } from "react";
 
 export default function EATViewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -23,6 +28,15 @@ export default function EATViewPage({ params }: { params: Promise<{ id: string }
           entityType="eat"
           entityId={parseInt(id)}
           entityName={`EAT #${id}`}
+          onLogCreate={() => setLogRefreshTrigger(Date.now())}
+        />
+
+        {/* Activity Log Section */}
+        <LogViewer
+          entityType="eat"
+          entityId={parseInt(id)}
+          entityName={`EAT #${id}`}
+          refreshTrigger={logRefreshTrigger}
         />
       </div>
     </div>

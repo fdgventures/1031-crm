@@ -8,6 +8,7 @@ import Link from "next/link";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
+import { LogViewer } from "@/components/LogViewer";
 
 interface Transaction {
   id: number;
@@ -84,6 +85,7 @@ export default function TransactionViewPage({
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
 
   const loadTransactionData = useCallback(async () => {
     try {
@@ -512,6 +514,17 @@ export default function TransactionViewPage({
             entityType="transaction"
             entityId={parseInt(id)}
             entityName={transaction?.transaction_number}
+            onLogCreate={() => setLogRefreshTrigger(Date.now())}
+          />
+        </div>
+
+        {/* Activity Log Section */}
+        <div className="mt-6">
+          <LogViewer
+            entityType="transaction"
+            entityId={parseInt(id)}
+            entityName={transaction?.transaction_number}
+            refreshTrigger={logRefreshTrigger}
           />
         </div>
       </div>

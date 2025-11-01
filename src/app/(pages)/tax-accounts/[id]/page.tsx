@@ -6,6 +6,7 @@ import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
+import { LogViewer } from "@/components/LogViewer";
 
 interface TaxAccount {
   id: number;
@@ -88,6 +89,7 @@ export default function TaxAccountViewPage({
   >(null);
   const [editBusinessNameValue, setEditBusinessNameValue] = useState("");
   const [editingBusinessName, setEditingBusinessName] = useState(false);
+  const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
 
   // Property modals
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
@@ -1225,6 +1227,17 @@ export default function TaxAccountViewPage({
             entityType="tax_account"
             entityId={parseInt(id)}
             entityName={taxAccount?.name}
+            onLogCreate={() => setLogRefreshTrigger(Date.now())}
+          />
+        </div>
+
+        {/* Activity Log Section */}
+        <div className="mt-6">
+          <LogViewer
+            entityType="tax_account"
+            entityId={parseInt(id)}
+            entityName={taxAccount?.name}
+            refreshTrigger={logRefreshTrigger}
           />
         </div>
       </div>
