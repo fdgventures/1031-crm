@@ -231,7 +231,7 @@ export default function PropertyViewPage({
     return () => {
       isMounted = false;
     };
-  }, [loadOwnerships, loadProperty, loadTaxAccounts]);
+  }, [loadOwnerships, loadProperty, loadTaxAccounts, supabase]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {

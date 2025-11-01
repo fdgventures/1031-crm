@@ -3,10 +3,8 @@
 import React, { useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
-import { useRouter } from "next/navigation";
 
 export default function AdminRegisterPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
