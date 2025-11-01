@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, use } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { DocumentRepository } from "@/components/document-repository";
 
 interface Exchange {
   id: number;
@@ -50,10 +51,10 @@ interface ExchangeTransaction {
 export default function ExchangeViewPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
-  const { id } = params;
+  const { id } = use(params);
   const supabase = getSupabaseClient();
   const [exchange, setExchange] = useState<Exchange | null>(null);
   const [transactions, setTransactions] = useState<ExchangeTransaction[]>([]);
@@ -394,6 +395,10 @@ export default function ExchangeViewPage({
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-8">
+          <DocumentRepository entityType="exchange" entityId={id} />
         </div>
       </div>
     </div>

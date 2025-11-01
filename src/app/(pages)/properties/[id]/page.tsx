@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, use } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { DocumentRepository } from "@/components/document-repository";
 
 interface Property {
   id: number;
@@ -61,10 +62,10 @@ type PropertyOwnershipInsert = {
 export default function PropertyViewPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
-  const { id } = params;
+  const { id } = use(params);
   const supabase = getSupabaseClient();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
@@ -793,6 +794,10 @@ export default function PropertyViewPage({
             </div>
           </div>
         )}
+      </div>
+
+      <div className="mt-8">
+        <DocumentRepository entityType="property" entityId={id} />
       </div>
     </div>
   );

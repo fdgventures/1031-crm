@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, use } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { DocumentRepository } from "@/components/document-repository";
 
 interface Transaction {
   id: number;
@@ -71,10 +72,10 @@ type PropertyOwnershipRow = {
 export default function TransactionViewPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
-  const { id } = params;
+  const { id } = use(params);
   const supabase = getSupabaseClient();
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [sellers, setSellers] = useState<TransactionSeller[]>([]);
@@ -374,126 +375,133 @@ export default function TransactionViewPage({
           </div>
         )}
 
-        {/* Sellers Section */}
-        <div className="bg-white shadow rounded-lg mb-6">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">Sellers</h2>
-          </div>
-          <div className="p-6">
-            {sellers.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No sellers found</p>
-            ) : (
-              <div className="space-y-4">
-                {sellers.map((seller, index) => (
-                  <div
-                    key={seller.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <h3 className="font-medium text-gray-900">
-                        Seller {index + 1}
-                      </h3>
-                      <span className="text-sm font-medium text-gray-700">
-                        {seller.contract_percent}%
-                      </span>
-                    </div>
-                    {seller.non_exchange_name ? (
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {seller.non_exchange_name}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-1">Non-exchange seller</p>
-                      </div>
-                    ) : seller.tax_account ? (
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {seller.vesting_name || seller.tax_account.name}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {seller.tax_account.profile
-                            ? `${seller.tax_account.profile.first_name} ${seller.tax_account.profile.last_name}`
-                            : seller.tax_account.entity
-                            ? seller.tax_account.entity.name
-                            : seller.tax_account.name}
-                        </p>
-                        {seller.tax_account.account_number && (
-                          <p className="text-xs text-gray-400 mt-1">
-                            Tax Account: {seller.tax_account.account_number}
-                          </p>
-                        )}
-                        {seller.tax_account.profile?.email && (
-                          <p className="text-xs text-gray-400">
-                            {seller.tax_account.profile.email}
-                          </p>
-                        )}
-                        {seller.tax_account.entity?.email && (
-                          <p className="text-xs text-gray-400">
-                            {seller.tax_account.entity.email}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-gray-500">No seller information</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        <div className="mt-8">
+          <DocumentRepository entityType="transaction" entityId={id} />
         </div>
 
-        {/* Buyers Section */}
-        <div className="bg-white shadow rounded-lg mb-6">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">Buyers</h2>
-          </div>
-          <div className="p-6">
-            {buyers.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No buyers found</p>
-            ) : (
-              <div className="space-y-4">
-                {buyers.map((buyer, index) => (
-                  <div
-                    key={buyer.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <h3 className="font-medium text-gray-900">Buyer {index + 1}</h3>
-                      <span className="text-sm font-medium text-gray-700">
-                        {buyer.contract_percent}%
-                      </span>
-                    </div>
-                    {buyer.non_exchange_name ? (
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {buyer.non_exchange_name}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-1">Non-exchange buyer</p>
+        {/* Sellers & Buyers */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="bg-white shadow rounded-lg">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Sellers</h2>
+            </div>
+            <div className="p-6">
+              {sellers.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No sellers found</p>
+              ) : (
+                <div className="space-y-4">
+                  {sellers.map((seller, index) => (
+                    <div
+                      key={seller.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <h3 className="font-medium text-gray-900">
+                          Seller {index + 1}
+                        </h3>
+                        <span className="text-sm font-medium text-gray-700">
+                          {seller.contract_percent}%
+                        </span>
                       </div>
-                    ) : buyer.profile ? (
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {buyer.profile.first_name} {buyer.profile.last_name}
-                        </p>
-                        {buyer.profile.email && (
-                          <p className="text-sm text-gray-500 mt-1">
-                            {buyer.profile.email}
+                      {seller.non_exchange_name ? (
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {seller.non_exchange_name}
                           </p>
-                        )}
-                        <Link
-                          href={`/profiles/${buyer.profile.id}`}
-                          className="text-blue-600 hover:text-blue-900 text-sm mt-2 inline-block"
-                        >
-                          View Profile →
-                        </Link>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Non-exchange seller
+                          </p>
+                        </div>
+                      ) : seller.tax_account ? (
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {seller.vesting_name || seller.tax_account.name}
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {seller.tax_account.profile
+                              ? `${seller.tax_account.profile.first_name} ${seller.tax_account.profile.last_name}`
+                              : seller.tax_account.entity
+                              ? seller.tax_account.entity.name
+                              : seller.tax_account.name}
+                          </p>
+                          {seller.tax_account.account_number && (
+                            <p className="text-xs text-gray-400 mt-1">
+                              Tax Account: {seller.tax_account.account_number}
+                            </p>
+                          )}
+                          {seller.tax_account.profile?.email && (
+                            <p className="text-xs text-gray-400">
+                              {seller.tax_account.profile.email}
+                            </p>
+                          )}
+                          {seller.tax_account.entity?.email && (
+                            <p className="text-xs text-gray-400">
+                              {seller.tax_account.entity.email}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500">No seller information</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white shadow rounded-lg">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Buyers</h2>
+            </div>
+            <div className="p-6">
+              {buyers.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No buyers found</p>
+              ) : (
+                <div className="space-y-4">
+                  {buyers.map((buyer, index) => (
+                    <div
+                      key={buyer.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <h3 className="font-medium text-gray-900">Buyer {index + 1}</h3>
+                        <span className="text-sm font-medium text-gray-700">
+                          {buyer.contract_percent}%
+                        </span>
                       </div>
-                    ) : (
-                      <p className="text-gray-500">No buyer information</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+                      {buyer.non_exchange_name ? (
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {buyer.non_exchange_name}
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">Non-exchange buyer</p>
+                        </div>
+                      ) : buyer.profile ? (
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {buyer.profile.first_name} {buyer.profile.last_name}
+                          </p>
+                          {buyer.profile.email && (
+                            <p className="text-sm text-gray-500 mt-1">
+                              {buyer.profile.email}
+                            </p>
+                          )}
+                          <Link
+                            href={`/profiles/${buyer.profile.id}`}
+                            className="text-blue-600 hover:text-blue-900 text-sm mt-2 inline-block"
+                          >
+                            View Profile →
+                          </Link>
+                        </div>
+                      ) : (
+                        <p className="text-gray-500">No buyer information</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

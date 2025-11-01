@@ -23,7 +23,7 @@ export default function Footer({
   ],
   contactInfo = {
     email: "info@exchange-crm.com",
-    phone: "+7 (xxx) xxx-xx-xx",
+    phone: "+1 (xxx) xxx-xx-xx",
   },
   copyrightText = "© 2024 Exchange CRM. All rights reserved.",
   className = "",

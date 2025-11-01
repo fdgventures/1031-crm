@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, use } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { DocumentRepository } from "@/components/document-repository";
 
 interface Profile {
   id: string;
@@ -60,10 +61,10 @@ type PropertyRow = {
 export default function ProfileViewPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
-  const { id } = params;
+  const { id } = use(params);
   const supabase = getSupabaseClient();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1062,6 +1063,113 @@ export default function ProfileViewPage({
             </div>
           </div>
         )}
+      </div>
+
+      <div className="mt-8">
+        <DocumentRepository entityType="profile" entityId={id} />
+      </div>
+
+      {/* Tax Accounts Section */}
+      <div className="bg-white shadow rounded-lg mt-6">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-gray-900">
+              Tax Accounts
+            </h2>
+            {canEdit && (
+              <Button
+                onClick={() => {
+                  if (profile) {
+                    setNewTaxAccountName(
+                      `${profile.first_name} ${profile.last_name}`
+                    );
+                  }
+                  setShowCreateTaxAccountModal(true);
+                }}
+                variant="primary"
+                size="small"
+              >
+                + Create Tax Account
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="p-6">
+          {taxAccounts.length === 0 ? (
+            <p className="text-gray-500 text-sm">No tax accounts found</p>
+          ) : (
+            <div className="space-y-3">
+              {taxAccounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => router.push(`/tax-accounts/${account.id}`)}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="font-medium text-gray-900">
+                        {account.name}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Created:{" "}
+                        {new Date(account.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <button className="text-blue-600 hover:text-blue-800 text-sm">
+                      View Details →
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Properties Section */}
+      <div className="bg-white shadow rounded-lg mt-6">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">
+            My Properties
+          </h2>
+        </div>
+
+        <div className="p-6">
+          {properties.length === 0 ? (
+            <p className="text-gray-500 text-sm">No properties found</p>
+          ) : (
+            <div className="space-y-3">
+              {properties.map((property) => (
+                <div
+                  key={property.id}
+                  className="border border-gray-200 rounded-lg p-4"
+                >
+                  <div>
+                    <h3 className="font-medium text-gray-900">
+                      {property.address}
+                    </h3>
+                    {property.business_name && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        Business Name: {property.business_name.name}
+                        {property.business_name.tax_account && (
+                          <span className="ml-2">
+                            • Tax Account:{" "}
+                            {property.business_name.tax_account.name}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-1">
+                      Added:{" "}
+                      {new Date(property.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

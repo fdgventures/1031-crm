@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, use } from "react";
 import Image from "next/image";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
@@ -93,10 +93,10 @@ const US_STATES = [
 export default function BusinessCardViewPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
-  const { id } = params;
+  const { id } = use(params);
   const supabase = getSupabaseClient();
   const businessCardId = Number.parseInt(id, 10);
   const [businessCard, setBusinessCard] = useState<BusinessCard | null>(null);

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 
 type NavItem = {
-  id: "search" | "message" | "logs" | "notifications";
+  id: "search" | "message" | "logs" | "work_queue" | "notifications";
   label: string;
   icon: React.ReactNode;
   href?: string;
@@ -67,6 +67,25 @@ const navItems: NavItem[] = [
         <path d="M9 7v14" />
         <path d="M15 7v14" />
         <path d="M3 11h18" />
+      </svg>
+    ),
+  },
+  {
+    id: "work_queue",
+    href: "/work-queue",
+    label: "Work Queue",
+    icon: (
+      <svg
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
       </svg>
     ),
   },

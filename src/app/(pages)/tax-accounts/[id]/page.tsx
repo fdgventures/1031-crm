@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, use } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
+import { DocumentRepository } from "@/components/document-repository";
 
 interface TaxAccount {
   id: number;
@@ -53,10 +54,10 @@ type PropertyBusinessNameSelection =
 export default function TaxAccountViewPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
-  const { id } = params;
+  const { id } = use(params);
   const numericId = Number.parseInt(id, 10);
   const supabase = getSupabaseClient();
   const [taxAccount, setTaxAccount] = useState<TaxAccount | null>(null);
@@ -728,6 +729,10 @@ export default function TaxAccountViewPage({
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="mt-6">
+          <DocumentRepository entityType="tax_account" entityId={id} />
         </div>
 
         {/* Business Names Section */}
