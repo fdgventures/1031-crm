@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
@@ -42,6 +42,7 @@ type AdminInvitationInsert = {
 
 export default function AdminsManagementPage() {
   const router = useRouter();
+  const supabase = getSupabaseClient();
   const [currentUser, setCurrentUser] = useState<CurrentAdminProfile | null>(null);
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -72,7 +73,7 @@ export default function AdminsManagementPage() {
       console.error("Failed to load admins:", err);
       setAdmins([]);
     }
-  }, []);
+  }, [supabase]);
 
   const loadInvitations = useCallback(async () => {
     try {
@@ -90,7 +91,7 @@ export default function AdminsManagementPage() {
       console.error("Failed to load invitations:", err);
       setInvitations([]);
     }
-  }, []);
+  }, [supabase]);
 
   const checkAuthAndLoadData = useCallback(async () => {
     try {
@@ -136,7 +137,7 @@ export default function AdminsManagementPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [loadAdmins, loadInvitations, router]);
+  }, [loadAdmins, loadInvitations, router, supabase]);
 
   useEffect(() => {
     void checkAuthAndLoadData();

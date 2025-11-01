@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
@@ -65,6 +65,7 @@ export default function PropertyViewPage({
 }) {
   const router = useRouter();
   const { id } = params;
+  const supabase = getSupabaseClient();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

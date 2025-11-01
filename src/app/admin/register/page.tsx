@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import React, { useState } from "react";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
+import { useRouter } from "next/navigation";
 
 export default function AdminRegisterPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -13,6 +15,7 @@ export default function AdminRegisterPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
+  const supabase = getSupabaseClient();
 
   useEffect(() => {
     // Не проверяем при загрузке, так как workspace_owner может регистрироваться всегда

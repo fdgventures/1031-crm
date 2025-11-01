@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
 
@@ -76,6 +76,7 @@ const US_STATES = [
 
 export default function BusinessCardsPage() {
   const router = useRouter();
+  const supabase = getSupabaseClient();
   const [businessCards, setBusinessCards] = useState<BusinessCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import React, { useState, useEffect, useCallback } from "react";
+import { getSupabaseClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 interface Exchange {
@@ -28,6 +28,7 @@ interface Exchange {
 
 export default function ExchangesPage() {
   const router = useRouter();
+  const supabase = getSupabaseClient();
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

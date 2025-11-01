@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -15,6 +15,7 @@ export default function HeaderUser() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [profileId, setProfileId] = useState<number | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const supabase = getSupabaseClient();
   const router = useRouter();
 
   useEffect(() => {

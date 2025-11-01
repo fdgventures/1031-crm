@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import React, { useState, useEffect, useCallback } from "react";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 
@@ -82,6 +82,7 @@ type PendingOwnershipInsert = {
 
 export default function TransactionsPage() {
   const router = useRouter();
+  const supabase = getSupabaseClient();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
@@ -47,6 +47,7 @@ type NewTaxAccountInsert = {
 
 export default function TaxAccountsPage() {
   const router = useRouter();
+  const supabase = getSupabaseClient();
   const [taxAccounts, setTaxAccounts] = useState<TaxAccount[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);

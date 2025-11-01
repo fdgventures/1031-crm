@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter, useParams } from "next/navigation";
 
@@ -56,6 +56,8 @@ export default function RegisterInvitePage() {
   const loadInvitation = useCallback(async () => {
     try {
       console.log("Loading invitation for token:", token);
+
+      const supabase = getSupabaseClient();
 
       const { data: invitationData, error: invitationError } = await supabase
         .from("profile_invitations")
@@ -149,6 +151,7 @@ export default function RegisterInvitePage() {
 
     try {
       // Register user
+      const supabase = getSupabaseClient();
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,

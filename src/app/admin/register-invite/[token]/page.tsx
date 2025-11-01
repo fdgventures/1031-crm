@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter, useParams } from "next/navigation";
 
@@ -28,6 +28,7 @@ export default function RegisterInvitePage() {
   const router = useRouter();
   const params = useParams();
   const token = params.token as string;
+  const supabase = getSupabaseClient();
 
   const [invitation, setInvitation] = useState<AdminInvitation | null>(null);
   const [email, setEmail] = useState("");

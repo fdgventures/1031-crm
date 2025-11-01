@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
@@ -21,6 +21,7 @@ type DashboardProfile = {
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const supabase = getSupabaseClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,7 +67,7 @@ export default function AdminDashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  }, [router, supabase]);
 
   useEffect(() => {
     void checkAuth();

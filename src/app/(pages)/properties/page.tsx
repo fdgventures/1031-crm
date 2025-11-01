@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
@@ -15,6 +15,7 @@ interface Property {
 
 export default function PropertiesPage() {
   const router = useRouter();
+  const supabase = getSupabaseClient();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -41,7 +42,7 @@ export default function PropertiesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [supabase]);
 
   const checkAdminAndLoadProperties = useCallback(async () => {
     try {
@@ -65,7 +66,7 @@ export default function PropertiesPage() {
     }
 
     await loadProperties();
-  }, [loadProperties]);
+  }, [loadProperties, supabase]);
 
   useEffect(() => {
     void checkAdminAndLoadProperties();

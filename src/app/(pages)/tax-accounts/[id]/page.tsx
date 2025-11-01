@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 
@@ -58,6 +58,7 @@ export default function TaxAccountViewPage({
   const router = useRouter();
   const { id } = params;
   const numericId = Number.parseInt(id, 10);
+  const supabase = getSupabaseClient();
   const [taxAccount, setTaxAccount] = useState<TaxAccount | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [businessNames, setBusinessNames] = useState<BusinessName[]>([]);
@@ -130,7 +131,7 @@ export default function TaxAccountViewPage({
     } catch (err) {
       console.error("Failed to load business names:", err);
     }
-  }, [numericId]);
+  }, [numericId, supabase]);
 
   const loadAllProperties = useCallback(async () => {
     try {
@@ -145,7 +146,7 @@ export default function TaxAccountViewPage({
     } catch (err) {
       console.error("Failed to load properties:", err);
     }
-  }, []);
+  }, [supabase]);
 
   const loadTaxAccount = useCallback(async () => {
     if (Number.isNaN(numericId)) {
@@ -186,7 +187,7 @@ export default function TaxAccountViewPage({
     } finally {
       setLoading(false);
     }
-  }, [loadAllProperties, loadBusinessNames, numericId]);
+  }, [loadAllProperties, loadBusinessNames, numericId, supabase]);
 
   const checkAdminAndLoadTaxAccount = useCallback(async () => {
     try {
@@ -210,7 +211,7 @@ export default function TaxAccountViewPage({
       console.error("Error checking admin:", err);
       setLoading(false);
     }
-  }, [loadTaxAccount]);
+  }, [loadTaxAccount, supabase]);
 
   useEffect(() => {
     void checkAdminAndLoadTaxAccount();

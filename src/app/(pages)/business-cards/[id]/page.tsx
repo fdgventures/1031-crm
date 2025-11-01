@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
 
@@ -97,6 +97,7 @@ export default function BusinessCardViewPage({
 }) {
   const router = useRouter();
   const { id } = params;
+  const supabase = getSupabaseClient();
   const businessCardId = Number.parseInt(id, 10);
   const [businessCard, setBusinessCard] = useState<BusinessCard | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -189,7 +190,7 @@ export default function BusinessCardViewPage({
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, supabase]);
 
   const checkAdminAndLoadBusinessCard = useCallback(async () => {
     try {
@@ -213,7 +214,7 @@ export default function BusinessCardViewPage({
       console.error("Error checking admin:", err);
       setLoading(false);
     }
-  }, [loadBusinessCard]);
+  }, [loadBusinessCard, supabase]);
 
   useEffect(() => {
     void checkAdminAndLoadBusinessCard();
