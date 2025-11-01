@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
@@ -310,10 +311,13 @@ export default function BusinessCardsPage() {
               >
                 <div className="flex items-center mb-4">
                   {card.logo_url ? (
-                    <img
+                    <Image
                       src={card.logo_url}
                       alt={card.business_name}
+                      width={64}
+                      height={64}
                       className="h-16 w-16 rounded-full object-cover"
+                      unoptimized
                     />
                   ) : (
                     <div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center">

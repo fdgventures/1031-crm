@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
@@ -131,10 +132,6 @@ export default function BusinessCardViewPage({
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
 
-  useEffect(() => {
-    void checkAdminAndLoadBusinessCard();
-  }, [checkAdminAndLoadBusinessCard]);
-
   const loadBusinessCard = useCallback(async () => {
     try {
       // Load business card
@@ -217,6 +214,10 @@ export default function BusinessCardViewPage({
       setLoading(false);
     }
   }, [loadBusinessCard]);
+
+  useEffect(() => {
+    void checkAdminAndLoadBusinessCard();
+  }, [checkAdminAndLoadBusinessCard]);
 
   const openEditModal = () => {
     if (businessCard) {
@@ -456,10 +457,13 @@ export default function BusinessCardViewPage({
             <div className="flex items-center">
               <div className="h-24 w-24 rounded-full bg-white flex items-center justify-center mr-6 overflow-hidden">
                 {businessCard.logo_url ? (
-                  <img
+                  <Image
                     src={businessCard.logo_url}
                     alt={businessCard.business_name}
+                    width={96}
+                    height={96}
                     className="h-full w-full object-cover"
+                    unoptimized
                   />
                 ) : (
                   <span className="text-3xl font-bold text-blue-600">🏢</span>
