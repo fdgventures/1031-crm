@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, use } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
@@ -50,10 +50,10 @@ interface ExchangeTransaction {
 export default function ExchangeViewPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
   const router = useRouter();
-  const resolvedParams = use(params);
+  const { id } = params;
   const [exchange, setExchange] = useState<Exchange | null>(null);
   const [transactions, setTransactions] = useState<ExchangeTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +88,7 @@ export default function ExchangeViewPage({
           )
         `
         )
-        .eq("id", resolvedParams.id)
+        .eq("id", id)
         .single();
 
       if (exchangeError) throw exchangeError;
@@ -110,7 +110,7 @@ export default function ExchangeViewPage({
           )
         `
         )
-        .eq("exchange_id", resolvedParams.id)
+        .eq("exchange_id", id)
         .order("created_at", { ascending: false });
 
       if (transactionsError) throw transactionsError;
@@ -121,7 +121,7 @@ export default function ExchangeViewPage({
     } finally {
       setLoading(false);
     }
-  }, [resolvedParams.id]);
+  }, [id]);
 
   useEffect(() => {
     void loadExchangeData();

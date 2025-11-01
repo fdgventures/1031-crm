@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, use } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
@@ -61,10 +61,10 @@ type PropertyOwnershipInsert = {
 export default function PropertyViewPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
   const router = useRouter();
-  const resolvedParams = use(params);
+  const { id } = params;
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +90,7 @@ export default function PropertyViewPage({
     const { data, error } = await supabase
       .from("properties")
       .select("*")
-      .eq("id", resolvedParams.id)
+      .eq("id", id)
       .single();
 
     if (error) throw error;
@@ -100,7 +100,7 @@ export default function PropertyViewPage({
     }
 
     setProperty(data as Property);
-  }, [resolvedParams.id]);
+  }, [id]);
 
   const loadOwnerships = useCallback(async () => {
     try {
@@ -127,7 +127,7 @@ export default function PropertyViewPage({
           )
         `
         )
-        .eq("property_id", resolvedParams.id)
+        .eq("property_id", id)
         .order("ownership_type", { ascending: true })
         .order("created_at", { ascending: false });
 
@@ -137,7 +137,7 @@ export default function PropertyViewPage({
       console.error("Failed to load ownerships:", err);
       setOwnerships([]);
     }
-  }, [resolvedParams.id]);
+  }, [id]);
 
   const loadTaxAccounts = useCallback(async () => {
     try {
@@ -280,7 +280,7 @@ export default function PropertyViewPage({
     setLoadingOwnerships(true);
 
     try {
-      const propertyId = Number.parseInt(resolvedParams.id, 10);
+      const propertyId = Number.parseInt(id, 10);
 
       if (Number.isNaN(propertyId)) {
         throw new Error("Invalid property id");

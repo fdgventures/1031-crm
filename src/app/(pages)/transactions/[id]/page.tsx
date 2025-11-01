@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, use } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
@@ -71,10 +71,10 @@ type PropertyOwnershipRow = {
 export default function TransactionViewPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
   const router = useRouter();
-  const resolvedParams = use(params);
+  const { id } = params;
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [sellers, setSellers] = useState<TransactionSeller[]>([]);
   const [buyers, setBuyers] = useState<TransactionBuyer[]>([]);
@@ -100,7 +100,7 @@ export default function TransactionViewPage({
           )
         `
         )
-        .eq("id", resolvedParams.id)
+        .eq("id", id)
         .single();
 
       if (transactionError) {
@@ -134,7 +134,7 @@ export default function TransactionViewPage({
           )
         `
         )
-        .eq("transaction_id", resolvedParams.id)
+        .eq("transaction_id", id)
         .order("created_at", { ascending: true });
 
       if (sellersError) {
@@ -156,7 +156,7 @@ export default function TransactionViewPage({
           )
         `
         )
-        .eq("transaction_id", resolvedParams.id)
+        .eq("transaction_id", id)
         .order("created_at", { ascending: true });
 
       if (buyersError) {
@@ -177,7 +177,7 @@ export default function TransactionViewPage({
             )
           `
           )
-          .eq("transaction_id", resolvedParams.id)
+          .eq("transaction_id", id)
           .eq("ownership_type", "pending");
 
         if (ownershipError) {
@@ -207,7 +207,7 @@ export default function TransactionViewPage({
     } finally {
       setLoading(false);
     }
-  }, [resolvedParams.id]);
+  }, [id]);
 
   useEffect(() => {
     void loadTransactionData();

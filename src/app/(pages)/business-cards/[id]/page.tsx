@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
@@ -92,10 +92,11 @@ const US_STATES = [
 export default function BusinessCardViewPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
   const router = useRouter();
-  const resolvedParams = use(params);
+  const { id } = params;
+  const businessCardId = Number.parseInt(id, 10);
   const [businessCard, setBusinessCard] = useState<BusinessCard | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -131,41 +132,16 @@ export default function BusinessCardViewPage({
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
 
   useEffect(() => {
-    checkAdminAndLoadBusinessCard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedParams.id]);
+    void checkAdminAndLoadBusinessCard();
+  }, [checkAdminAndLoadBusinessCard]);
 
-  const checkAdminAndLoadBusinessCard = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("role_type")
-          .eq("id", user.id)
-          .single();
-
-        const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
-        setIsAdmin(adminRoles.includes(profile?.role_type || ""));
-      }
-
-      await loadBusinessCard();
-    } catch (err) {
-      console.error("Error checking admin:", err);
-      setLoading(false);
-    }
-  };
-
-  const loadBusinessCard = async () => {
+  const loadBusinessCard = useCallback(async () => {
     try {
       // Load business card
       const { data: cardData, error: cardError } = await supabase
         .from("business_cards")
         .select("*")
-        .eq("id", resolvedParams.id)
+        .eq("id", id)
         .single();
 
       if (cardError) throw cardError;
@@ -175,7 +151,7 @@ export default function BusinessCardViewPage({
       const { data: branchesData, error: branchesError } = await supabase
         .from("branches")
         .select("*")
-        .eq("business_card_id", resolvedParams.id)
+        .eq("business_card_id", id)
         .order("created_at", { ascending: true });
 
       if (branchesError) throw branchesError;
@@ -191,7 +167,7 @@ export default function BusinessCardViewPage({
           branch:branch_id (id, branch_name, state, address, email)
         `
         )
-        .eq("business_card_id", resolvedParams.id);
+        .eq("business_card_id", id);
 
       if (employeesError) throw employeesError;
 
@@ -216,7 +192,31 @@ export default function BusinessCardViewPage({
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  const checkAdminAndLoadBusinessCard = useCallback(async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("role_type")
+          .eq("id", user.id)
+          .single();
+
+        const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
+        setIsAdmin(adminRoles.includes(profile?.role_type || ""));
+      }
+
+      await loadBusinessCard();
+    } catch (err) {
+      console.error("Error checking admin:", err);
+      setLoading(false);
+    }
+  }, [loadBusinessCard]);
 
   const openEditModal = () => {
     if (businessCard) {
@@ -270,7 +270,7 @@ export default function BusinessCardViewPage({
           email: editEmail,
           logo_url: logoUrl,
         })
-        .eq("id", resolvedParams.id);
+        .eq("id", id);
 
       if (error) throw error;
 
@@ -294,9 +294,13 @@ export default function BusinessCardViewPage({
     setIsCreatingBranch(true);
 
     try {
+      if (Number.isNaN(businessCardId)) {
+        throw new Error("Invalid business card id");
+      }
+
       const { error } = await supabase.from("branches").insert([
         {
-          business_card_id: resolvedParams.id,
+          business_card_id: businessCardId,
           ...newBranch,
         },
       ]);
@@ -346,9 +350,13 @@ export default function BusinessCardViewPage({
         throw new Error("Please select an employee");
       }
 
+      if (Number.isNaN(businessCardId)) {
+        throw new Error("Invalid business card id");
+      }
+
       const { error } = await supabase.from("business_card_employees").insert([
         {
-          business_card_id: parseInt(resolvedParams.id),
+          business_card_id: businessCardId,
           profile_id: selectedProfileId,
           branch_id: selectedBranchId,
         },

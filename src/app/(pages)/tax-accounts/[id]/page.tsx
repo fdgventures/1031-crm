@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
@@ -53,10 +53,11 @@ type PropertyBusinessNameSelection =
 export default function TaxAccountViewPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
   const router = useRouter();
-  const resolvedParams = use(params);
+  const { id } = params;
+  const numericId = Number.parseInt(id, 10);
   const [taxAccount, setTaxAccount] = useState<TaxAccount | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [businessNames, setBusinessNames] = useState<BusinessName[]>([]);
@@ -95,42 +96,68 @@ export default function TaxAccountViewPage({
   const [newPropertyAddress, setNewPropertyAddress] = useState("");
   const [propertyActionLoading, setPropertyActionLoading] = useState(false);
 
-  useEffect(() => {
-    checkAdminAndLoadTaxAccount();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedParams.id]);
-
-  const checkAdminAndLoadTaxAccount = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        const { data: userProfile } = await supabase
-          .from("user_profiles")
-          .select("role_type")
-          .eq("id", user.id)
-          .single();
-
-        const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
-        setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
-      }
-
-      await loadTaxAccount();
-    } catch (err) {
-      console.error("Error checking admin:", err);
-      setLoading(false);
+  const loadBusinessNames = useCallback(async () => {
+    if (Number.isNaN(numericId)) {
+      throw new Error("Invalid tax account id");
     }
-  };
 
-  const loadTaxAccount = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("business_names")
+        .select("*")
+        .eq("tax_account_id", numericId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Load properties for each business name
+      const businessNamesWithProperties = await Promise.all(
+        (data || []).map(async (bn) => {
+          const { data: properties } = await supabase
+            .from("properties")
+            .select("*")
+            .eq("business_name_id", bn.id)
+            .order("created_at", { ascending: false });
+
+          return {
+            ...bn,
+            properties: properties || [],
+          };
+        })
+      );
+
+      setBusinessNames(businessNamesWithProperties);
+    } catch (err) {
+      console.error("Failed to load business names:", err);
+    }
+  }, [numericId]);
+
+  const loadAllProperties = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("*")
+        .is("business_name_id", null)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setAllProperties(data || []);
+    } catch (err) {
+      console.error("Failed to load properties:", err);
+    }
+  }, []);
+
+  const loadTaxAccount = useCallback(async () => {
+    if (Number.isNaN(numericId)) {
+      throw new Error("Invalid tax account id");
+    }
+
     try {
       // Load Tax Account
       const { data: taxAccountData, error: taxAccountError } = await supabase
         .from("tax_accounts")
         .select("*")
-        .eq("id", resolvedParams.id)
+        .eq("id", numericId)
         .single();
 
       if (taxAccountError) throw taxAccountError;
@@ -159,14 +186,46 @@ export default function TaxAccountViewPage({
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadAllProperties, loadBusinessNames, numericId]);
 
-  const loadBusinessNames = async () => {
+  const checkAdminAndLoadTaxAccount = useCallback(async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: userProfile } = await supabase
+          .from("user_profiles")
+          .select("role_type")
+          .eq("id", user.id)
+          .single();
+
+        const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
+        setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
+      }
+
+      await loadTaxAccount();
+    } catch (err) {
+      console.error("Error checking admin:", err);
+      setLoading(false);
+    }
+  }, [loadTaxAccount]);
+
+  useEffect(() => {
+    void checkAdminAndLoadTaxAccount();
+  }, [checkAdminAndLoadTaxAccount]);
+
+  const loadBusinessNames = useCallback(async () => {
+    if (Number.isNaN(numericId)) {
+      throw new Error("Invalid tax account id");
+    }
+
     try {
       const { data, error } = await supabase
         .from("business_names")
         .select("*")
-        .eq("tax_account_id", resolvedParams.id)
+        .eq("tax_account_id", numericId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -191,9 +250,9 @@ export default function TaxAccountViewPage({
     } catch (err) {
       console.error("Failed to load business names:", err);
     }
-  };
+  }, [numericId]);
 
-  const loadAllProperties = async () => {
+  const loadAllProperties = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("properties")
@@ -206,7 +265,7 @@ export default function TaxAccountViewPage({
     } catch (err) {
       console.error("Failed to load properties:", err);
     }
-  };
+  }, []);
 
   const handleCreateBusinessName = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,11 +278,15 @@ export default function TaxAccountViewPage({
         throw new Error("Business Name is required");
       }
 
+      if (Number.isNaN(numericId)) {
+        throw new Error("Invalid tax account id");
+      }
+
       const { error: insertError } = await supabase
         .from("business_names")
         .insert({
           name: newBusinessName,
-          tax_account_id: resolvedParams.id,
+          tax_account_id: numericId,
         });
 
       if (insertError) throw insertError;
@@ -483,7 +546,7 @@ export default function TaxAccountViewPage({
       const { error: updateError } = await supabase
         .from("tax_accounts")
         .update({ name: editTaxAccountName })
-        .eq("id", resolvedParams.id);
+        .eq("id", numericId);
 
       if (updateError) throw updateError;
 
@@ -514,7 +577,7 @@ export default function TaxAccountViewPage({
       const { error: deleteError } = await supabase
         .from("tax_accounts")
         .delete()
-        .eq("id", resolvedParams.id);
+        .eq("id", numericId);
 
       if (deleteError) throw deleteError;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, use } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
@@ -60,10 +60,10 @@ type PropertyRow = {
 export default function ProfileViewPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
   const router = useRouter();
-  const resolvedParams = use(params);
+  const { id } = params;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +100,7 @@ export default function ProfileViewPage({
       const { data, error } = await supabase
         .from("profile")
         .select("*")
-        .eq("id", resolvedParams.id)
+        .eq("id", id)
         .single();
 
       if (error) throw error;
@@ -111,14 +111,14 @@ export default function ProfileViewPage({
     } finally {
       setLoading(false);
     }
-  }, [resolvedParams.id]);
+  }, [id]);
 
   const loadInvitation = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("profile_invitations")
         .select("*")
-        .eq("profile_id", resolvedParams.id)
+        .eq("profile_id", id)
         .eq("status", "pending")
         .single();
 
@@ -128,14 +128,14 @@ export default function ProfileViewPage({
     } catch (err) {
       console.log("No active invitation found", err);
     }
-  }, [resolvedParams.id]);
+  }, [id]);
 
   const loadTaxAccounts = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("tax_accounts")
         .select("id, name, created_at")
-        .eq("profile_id", resolvedParams.id)
+        .eq("profile_id", id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -143,7 +143,7 @@ export default function ProfileViewPage({
     } catch (err) {
       console.error("Failed to load tax accounts:", err);
     }
-  }, [resolvedParams.id]);
+  }, [id]);
 
   const loadProperties = useCallback(async () => {
     try {
@@ -216,7 +216,7 @@ export default function ProfileViewPage({
         const { data: currentProfile } = await supabase
           .from("profile")
           .select("user_id")
-          .eq("id", resolvedParams.id)
+          .eq("id", id)
           .single();
 
         const isOwner = currentProfile?.user_id === user.id;
@@ -232,7 +232,7 @@ export default function ProfileViewPage({
       setError(getErrorMessage(err, "Failed to load profile"));
       setLoading(false);
     }
-  }, [loadInvitation, loadProfile, loadProperties, loadTaxAccounts, resolvedParams.id]);
+  }, [id, loadInvitation, loadProfile, loadProperties, loadTaxAccounts]);
 
   useEffect(() => {
     void checkAdminAndLoadProfile();
@@ -281,7 +281,7 @@ export default function ProfileViewPage({
         .from("profile_invitations")
         .insert([
           {
-            profile_id: resolvedParams.id,
+            profile_id: id,
             email: emailToUse,
             invited_by: user.id,
           },
@@ -330,7 +330,7 @@ export default function ProfileViewPage({
         .from("tax_accounts")
         .insert({
           name: newTaxAccountName,
-          profile_id: resolvedParams.id,
+          profile_id: id,
         })
         .select()
         .single();
@@ -342,7 +342,7 @@ export default function ProfileViewPage({
       const { data: profileData, error: profileError } = await supabase
         .from("profile")
         .select("last_name")
-        .eq("id", resolvedParams.id)
+        .eq("id", id)
         .single();
 
       if (!profileError && profileData) {
@@ -465,7 +465,7 @@ export default function ProfileViewPage({
           email: editEmail,
           avatar_url: avatarUrl,
         })
-        .eq("id", resolvedParams.id);
+        .eq("id", id);
 
       if (error) throw error;
 
