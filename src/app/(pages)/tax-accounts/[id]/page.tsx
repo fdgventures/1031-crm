@@ -216,57 +216,6 @@ export default function TaxAccountViewPage({
     void checkAdminAndLoadTaxAccount();
   }, [checkAdminAndLoadTaxAccount]);
 
-  const loadBusinessNames = useCallback(async () => {
-    if (Number.isNaN(numericId)) {
-      throw new Error("Invalid tax account id");
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("business_names")
-        .select("*")
-        .eq("tax_account_id", numericId)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Load properties for each business name
-      const businessNamesWithProperties = await Promise.all(
-        (data || []).map(async (bn) => {
-          const { data: properties } = await supabase
-            .from("properties")
-            .select("*")
-            .eq("business_name_id", bn.id)
-            .order("created_at", { ascending: false });
-
-          return {
-            ...bn,
-            properties: properties || [],
-          };
-        })
-      );
-
-      setBusinessNames(businessNamesWithProperties);
-    } catch (err) {
-      console.error("Failed to load business names:", err);
-    }
-  }, [numericId]);
-
-  const loadAllProperties = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("*")
-        .is("business_name_id", null)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setAllProperties(data || []);
-    } catch (err) {
-      console.error("Failed to load properties:", err);
-    }
-  }, []);
-
   const handleCreateBusinessName = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
