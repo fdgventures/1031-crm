@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
+import { TaskManager } from "@/components/TaskManager";
 
 interface Exchange {
   id: number;
@@ -399,6 +400,15 @@ export default function ExchangeViewPage({
 
         <div className="mt-8">
           <DocumentRepository entityType="exchange" entityId={id} />
+        </div>
+
+        {/* Tasks Section */}
+        <div className="mt-6">
+          <TaskManager
+            entityType="exchange"
+            entityId={parseInt(id)}
+            entityName={exchange?.exchange_number}
+          />
         </div>
       </div>
     </div>

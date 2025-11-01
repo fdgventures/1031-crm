@@ -5,6 +5,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { DocumentRepository } from "@/components/document-repository";
+import { TaskManager } from "@/components/TaskManager";
 
 interface TaxAccount {
   id: number;
@@ -1217,6 +1218,15 @@ export default function TaxAccountViewPage({
             </div>
           </div>
         )}
+
+        {/* Tasks Section */}
+        <div className="mt-6">
+          <TaskManager
+            entityType="tax_account"
+            entityId={parseInt(id)}
+            entityName={taxAccount?.name}
+          />
+        </div>
       </div>
     </div>
   );

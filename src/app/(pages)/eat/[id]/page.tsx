@@ -1,4 +1,5 @@
 import { DocumentRepository } from "@/components/document-repository";
+import { TaskManager } from "@/components/TaskManager";
 import { use } from "react";
 
 export default function EATViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,6 +17,13 @@ export default function EATViewPage({ params }: { params: Promise<{ id: string }
         </div>
 
         <DocumentRepository entityType="eat" entityId={id} />
+        
+        {/* Tasks Section */}
+        <TaskManager
+          entityType="eat"
+          entityId={parseInt(id)}
+          entityName={`EAT #${id}`}
+        />
       </div>
     </div>
   );

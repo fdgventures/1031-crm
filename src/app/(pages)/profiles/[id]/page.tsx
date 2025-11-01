@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
+import { TaskManager } from "@/components/TaskManager";
 
 interface Profile {
   id: string;
@@ -1170,6 +1171,15 @@ export default function ProfileViewPage({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Tasks Section */}
+      <div className="mt-6">
+        <TaskManager
+          entityType="profile"
+          entityId={parseInt(id)}
+          entityName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
+        />
       </div>
     </div>
   );

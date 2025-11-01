@@ -6,6 +6,7 @@ import { Button, Input } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
+import { TaskManager } from "@/components/TaskManager";
 
 interface Property {
   id: number;
@@ -798,6 +799,15 @@ export default function PropertyViewPage({
 
       <div className="mt-8">
         <DocumentRepository entityType="property" entityId={id} />
+      </div>
+
+      {/* Tasks Section */}
+      <div className="mt-6">
+        <TaskManager
+          entityType="property"
+          entityId={parseInt(id)}
+          entityName={property?.address}
+        />
       </div>
     </div>
   );

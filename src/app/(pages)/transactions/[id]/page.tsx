@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
+import { TaskManager } from "@/components/TaskManager";
 
 interface Transaction {
   id: number;
@@ -503,6 +504,15 @@ export default function TransactionViewPage({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Tasks Section */}
+        <div className="mt-6">
+          <TaskManager
+            entityType="transaction"
+            entityId={parseInt(id)}
+            entityName={transaction?.transaction_number}
+          />
         </div>
       </div>
     </div>
