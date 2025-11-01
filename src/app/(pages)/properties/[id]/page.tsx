@@ -101,7 +101,7 @@ export default function PropertyViewPage({
     }
 
     setProperty(data as Property);
-  }, [id]);
+  }, [id, supabase]);
 
   const loadOwnerships = useCallback(async () => {
     try {
@@ -138,7 +138,7 @@ export default function PropertyViewPage({
       console.error("Failed to load ownerships:", err);
       setOwnerships([]);
     }
-  }, [id]);
+  }, [id, supabase]);
 
   const loadTaxAccounts = useCallback(async () => {
     try {
@@ -157,7 +157,7 @@ export default function PropertyViewPage({
       setTaxAccounts([]);
       setFilteredTaxAccounts([]);
     }
-  }, []);
+  }, [supabase]);
 
   const loadBusinessNames = useCallback(async (taxAccountId: number) => {
     try {
@@ -173,7 +173,7 @@ export default function PropertyViewPage({
       console.error("Failed to load business names:", err);
       return [];
     }
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     let isMounted = true;

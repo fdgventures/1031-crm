@@ -108,7 +108,7 @@ export default function RegisterInvitePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [getErrorMessage, token]);
+  }, [getErrorMessage, supabase, token]);
 
   useEffect(() => {
     void loadInvitation();

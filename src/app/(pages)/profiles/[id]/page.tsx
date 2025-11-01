@@ -112,7 +112,7 @@ export default function ProfileViewPage({
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, supabase]);
 
   const loadInvitation = useCallback(async () => {
     try {
@@ -129,7 +129,7 @@ export default function ProfileViewPage({
     } catch (err) {
       console.log("No active invitation found", err);
     }
-  }, [id]);
+  }, [id, supabase]);
 
   const loadTaxAccounts = useCallback(async () => {
     try {
@@ -144,7 +144,7 @@ export default function ProfileViewPage({
     } catch (err) {
       console.error("Failed to load tax accounts:", err);
     }
-  }, [id]);
+  }, [id, supabase]);
 
   const loadProperties = useCallback(async () => {
     try {
@@ -191,7 +191,7 @@ export default function ProfileViewPage({
     } catch (err) {
       console.error("Failed to load properties:", err);
     }
-  }, []);
+  }, [supabase]);
 
   const checkAdminAndLoadProfile = useCallback(async () => {
     try {
@@ -233,7 +233,7 @@ export default function ProfileViewPage({
       setError(getErrorMessage(err, "Failed to load profile"));
       setLoading(false);
     }
-  }, [id, loadInvitation, loadProfile, loadProperties, loadTaxAccounts]);
+  }, [id, loadInvitation, loadProfile, loadProperties, loadTaxAccounts, supabase]);
 
   useEffect(() => {
     void checkAdminAndLoadProfile();

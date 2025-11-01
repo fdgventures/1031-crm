@@ -104,7 +104,7 @@ export default function HeaderUser() {
     });
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [router, supabase]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();

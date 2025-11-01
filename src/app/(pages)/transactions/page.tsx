@@ -120,6 +120,143 @@ export default function TransactionsPage() {
   const [buyerExchanges, setBuyerExchanges] = useState<{ [key: string]: Array<{ id: number; exchange_number: string; tax_account_id: number }> }>({});
   const [showExchangeDropdown, setShowExchangeDropdown] = useState<{ [key: string]: boolean }>({});
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.dropdown-container')) {
+        setShowClosingAgentDropdown(false);
+        setShowBuyerDropdown({});
+        setShowSellerDropdown({});
+        setShowExchangeDropdown({});
+      }
+    };
+
+      if (
+        showClosingAgentDropdown ||
+        showPropertyDropdown ||
+        Object.values(showBuyerDropdown).some((v) => v) ||
+        Object.values(showSellerDropdown).some((v) => v) ||
+        Object.values(showExchangeDropdown).some((v) => v)
+      ) {
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+          document.removeEventListener('mousedown', handleClickOutside);
+        };
+      }
+    }, [showClosingAgentDropdown, showPropertyDropdown, showBuyerDropdown, showSellerDropdown, showExchangeDropdown]);
+
+  useEffect(() => {
+    if (closingAgentSearch) {
+      const filtered = profiles.filter(
+        (p) =>
+          `${p.first_name} ${p.last_name}`.toLowerCase().includes(closingAgentSearch.toLowerCase()) ||
+          (p.email && p.email.toLowerCase().includes(closingAgentSearch.toLowerCase()))
+      );
+      setFilteredProfiles(filtered.slice(0, 10));
+    } else {
+      setFilteredProfiles(profiles.slice(0, 10));
+    }
+  }, [closingAgentSearch, profiles]);
+
+  useEffect(() => {
+    if (propertySearch) {
+      const filtered = availableProperties.filter((p) =>
+        p.address.toLowerCase().includes(propertySearch.toLowerCase())
+      );
+      setFilteredProperties(filtered.slice(0, 10));
+    } else {
+      setFilteredProperties(availableProperties.slice(0, 10));
+    }
+  }, [propertySearch, availableProperties]);
+
+
+  const loadTransactions = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setTransactions(data || []);
+    } catch (err) {
+      console.error("Failed to load transactions:", err);
+      throw err; // Re-throw to be handled by parent
+    }
+  }, [supabase]);
+
+  const loadProfiles = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profile")
+        .select("id, first_name, last_name, email")
+        .order("first_name");
+
+      if (error) throw error;
+      const profilesList = data || [];
+      setProfiles(profilesList);
+      setFilteredProfiles(profilesList.slice(0, 10));
+    } catch (err) {
+      console.error("Failed to load profiles:", err);
+      // Don't throw - profiles loading failure shouldn't block page load
+      setProfiles([]);
+      setFilteredProfiles([]);
+    }
+  }, [supabase]);
+
+  const loadProfilesWithExchanges = useCallback(async () => {
+    try {
+      // Get all exchanges with their tax accounts
+      const { data: exchangesData, error: exchangesError } = await supabase
+        .from("exchanges")
+        .select(`
+          tax_account_id,
+          tax_account:tax_account_id (
+            profile_id
+          )
+        `);
+
+      if (exchangesError) throw exchangesError;
+
+      // Extract unique profile IDs from tax accounts that have exchanges
+      const profileIdsWithExchanges = new Set<number>();
+      const exchangesRows = (exchangesData ?? []) as ExchangeWithTaxAccount[];
+
+      exchangesRows.forEach((exchange) => {
+        const taxAccountInfo = exchange.tax_account;
+        const profileId = Array.isArray(taxAccountInfo)
+          ? taxAccountInfo[0]?.profile_id
+          : taxAccountInfo?.profile_id;
+
+        if (typeof profileId === "number" && !Number.isNaN(profileId)) {
+          profileIdsWithExchanges.add(profileId);
+        }
+      });
+
+      setProfilesWithExchanges(profileIdsWithExchanges);
+    } catch (err) {
+      console.error("Failed to load profiles with exchanges:", err);
+      setProfilesWithExchanges(new Set());
+    }
+  }, [supabase]);
+
+  const loadTaxAccounts = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("tax_accounts")
+        .select("id, name, profile_id")
+        .order("name");
+
+      if (error) throw error;
+      setTaxAccounts(data || []);
+    } catch (err) {
+      console.error("Failed to load tax accounts:", err);
+      // Don't throw - tax accounts loading failure shouldn't block page load
+      setTaxAccounts([]);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -173,151 +310,14 @@ export default function TransactionsPage() {
       }
     };
 
-    loadData();
+    void loadData();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadProfiles, loadProfilesWithExchanges, loadTaxAccounts, loadTransactions, supabase]);
 
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.dropdown-container')) {
-        setShowClosingAgentDropdown(false);
-        setShowBuyerDropdown({});
-        setShowSellerDropdown({});
-        setShowExchangeDropdown({});
-      }
-    };
-
-      if (
-        showClosingAgentDropdown ||
-        showPropertyDropdown ||
-        Object.values(showBuyerDropdown).some((v) => v) ||
-        Object.values(showSellerDropdown).some((v) => v) ||
-        Object.values(showExchangeDropdown).some((v) => v)
-      ) {
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-          document.removeEventListener('mousedown', handleClickOutside);
-        };
-      }
-    }, [showClosingAgentDropdown, showPropertyDropdown, showBuyerDropdown, showSellerDropdown, showExchangeDropdown]);
-
-  useEffect(() => {
-    if (closingAgentSearch) {
-      const filtered = profiles.filter(
-        (p) =>
-          `${p.first_name} ${p.last_name}`.toLowerCase().includes(closingAgentSearch.toLowerCase()) ||
-          (p.email && p.email.toLowerCase().includes(closingAgentSearch.toLowerCase()))
-      );
-      setFilteredProfiles(filtered.slice(0, 10));
-    } else {
-      setFilteredProfiles(profiles.slice(0, 10));
-    }
-  }, [closingAgentSearch, profiles]);
-
-  useEffect(() => {
-    if (propertySearch) {
-      const filtered = availableProperties.filter((p) =>
-        p.address.toLowerCase().includes(propertySearch.toLowerCase())
-      );
-      setFilteredProperties(filtered.slice(0, 10));
-    } else {
-      setFilteredProperties(availableProperties.slice(0, 10));
-    }
-  }, [propertySearch, availableProperties]);
-
-
-  const loadTransactions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setTransactions(data || []);
-    } catch (err) {
-      console.error("Failed to load transactions:", err);
-      throw err; // Re-throw to be handled by parent
-    }
-  };
-
-  const loadProfiles = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("profile")
-        .select("id, first_name, last_name, email")
-        .order("first_name");
-
-      if (error) throw error;
-      const profilesList = data || [];
-      setProfiles(profilesList);
-      setFilteredProfiles(profilesList.slice(0, 10));
-    } catch (err) {
-      console.error("Failed to load profiles:", err);
-      // Don't throw - profiles loading failure shouldn't block page load
-      setProfiles([]);
-      setFilteredProfiles([]);
-    }
-  };
-
-  const loadProfilesWithExchanges = async () => {
-    try {
-      // Get all exchanges with their tax accounts
-      const { data: exchangesData, error: exchangesError } = await supabase
-        .from("exchanges")
-        .select(`
-          tax_account_id,
-          tax_account:tax_account_id (
-            profile_id
-          )
-        `);
-
-      if (exchangesError) throw exchangesError;
-
-      // Extract unique profile IDs from tax accounts that have exchanges
-      const profileIdsWithExchanges = new Set<number>();
-      const exchangesRows = (exchangesData ?? []) as ExchangeWithTaxAccount[];
-
-      exchangesRows.forEach((exchange) => {
-        const taxAccountInfo = exchange.tax_account;
-        const profileId = Array.isArray(taxAccountInfo)
-          ? taxAccountInfo[0]?.profile_id
-          : taxAccountInfo?.profile_id;
-
-        if (typeof profileId === "number" && !Number.isNaN(profileId)) {
-          profileIdsWithExchanges.add(profileId);
-        }
-      });
-
-      setProfilesWithExchanges(profileIdsWithExchanges);
-    } catch (err) {
-      console.error("Failed to load profiles with exchanges:", err);
-      setProfilesWithExchanges(new Set());
-    }
-  };
-
-  const loadTaxAccounts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("tax_accounts")
-        .select("id, name, profile_id")
-        .order("name");
-
-      if (error) throw error;
-      setTaxAccounts(data || []);
-    } catch (err) {
-      console.error("Failed to load tax accounts:", err);
-      // Don't throw - tax accounts loading failure shouldn't block page load
-      setTaxAccounts([]);
-    }
-  };
-
-  const loadCommonPropertiesForSellers = async () => {
+  const loadCommonPropertiesForSellers = useCallback(async () => {
     try {
       // Get current sellers and businessNames from state
       const currentSellers = sellers;
@@ -381,9 +381,9 @@ export default function TransactionsPage() {
       setAvailableProperties([]);
       setFilteredProperties([]);
     }
-  };
+  }, [businessNames, sellers, supabase]);
 
-  const loadBusinessNamesForTaxAccount = async (taxAccountId: number) => {
+  const loadBusinessNamesForTaxAccount = useCallback(async (taxAccountId: number) => {
     try {
       const { data, error } = await supabase
         .from("business_names")
@@ -397,7 +397,7 @@ export default function TransactionsPage() {
       console.error("Failed to load business names:", err);
       return [];
     }
-  };
+  }, [supabase]);
 
   const generateTransactionNumber = async (saleType: "Property" | "Entity"): Promise<string> => {
     const prefix = saleType === "Property" ? "STA" : "ENT";
@@ -502,7 +502,7 @@ export default function TransactionsPage() {
         (s) => s.is_non_exchange || (s.tax_account_id && s.vesting_name)
       );
       if (allSellersHaveVesting) {
-        loadCommonPropertiesForSellers();
+        void loadCommonPropertiesForSellers();
       } else {
         setAvailableProperties([]);
         setFilteredProperties([]);
@@ -511,8 +511,7 @@ export default function TransactionsPage() {
       setAvailableProperties([]);
       setFilteredProperties([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sellers, saleType, businessNames]);
+  }, [businessNames, loadCommonPropertiesForSellers, saleType, sellers]);
 
   const addNonExchangeSeller = () => {
     const newSeller: TransactionSeller = {

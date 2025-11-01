@@ -122,7 +122,7 @@ export default function ExchangeViewPage({
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, supabase]);
 
   useEffect(() => {
     void loadExchangeData();

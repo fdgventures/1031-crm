@@ -89,7 +89,7 @@ export default function TaxAccountsPage() {
     }
 
     setTaxAccounts((data ?? []) as TaxAccount[]);
-  }, []);
+  }, [supabase]);
 
   const loadProfiles = useCallback(async () => {
     const { data, error } = await supabase
@@ -102,7 +102,7 @@ export default function TaxAccountsPage() {
     }
 
     setProfiles((data ?? []) as Profile[]);
-  }, []);
+  }, [supabase]);
 
   const loadEntities = useCallback(async () => {
     const { data, error } = await supabase
@@ -115,7 +115,7 @@ export default function TaxAccountsPage() {
     }
 
     setEntities((data ?? []) as Entity[]);
-  }, []);
+  }, [supabase]);
 
   const checkAdminAndLoadTaxAccounts = useCallback(async () => {
     try {
@@ -155,7 +155,7 @@ export default function TaxAccountsPage() {
     } finally {
       setLoading(false);
     }
-  }, [loadEntities, loadProfiles, loadTaxAccounts]);
+  }, [loadEntities, loadProfiles, loadTaxAccounts, supabase]);
 
   useEffect(() => {
     void checkAdminAndLoadTaxAccounts();

@@ -208,7 +208,7 @@ export default function TransactionViewPage({
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, supabase]);
 
   useEffect(() => {
     void loadTransactionData();

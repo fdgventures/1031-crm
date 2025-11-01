@@ -38,7 +38,7 @@ export default function AdminSignInPage() {
     } catch {
       console.log("No current user");
     }
-  }, [router]);
+  }, [router, supabase]);
 
   useEffect(() => {
     // Не делаем автоматический редирект - показываем форму всегда

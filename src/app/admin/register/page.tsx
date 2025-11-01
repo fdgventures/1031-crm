@@ -17,10 +17,6 @@ export default function AdminRegisterPage() {
   const [resendLoading, setResendLoading] = useState(false);
   const supabase = getSupabaseClient();
 
-  useEffect(() => {
-    // Не проверяем при загрузке, так как workspace_owner может регистрироваться всегда
-  }, []);
-
   const checkExistingAdmin = async () => {
     try {
       const { data, error } = await supabase

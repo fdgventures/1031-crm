@@ -33,11 +33,7 @@ export default function ExchangesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadExchanges();
-  }, []);
-
-  const loadExchanges = async () => {
+  const loadExchanges = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("exchanges")
@@ -72,7 +68,11 @@ export default function ExchangesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    void loadExchanges();
+  }, [loadExchanges]);
 
   if (loading) {
     return (
