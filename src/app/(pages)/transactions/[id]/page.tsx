@@ -363,49 +363,8 @@ export default function TransactionViewPage({
           </div>
         </div>
 
-        {/* Properties Section (only for Property transactions) */}
-        {transaction.sale_type === "Property" && properties.length > 0 && (
-          <div className="bg-white shadow rounded-lg mb-6">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Properties
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-3">
-                {properties.map((property) => (
-                  <div
-                    key={property.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => router.push(`/properties/${property.id}`)}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">
-                          {property.address}
-                        </p>
-                      </div>
-                      <Link
-                        href={`/properties/${property.id}`}
-                        className="text-blue-600 hover:text-blue-900 text-sm"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        View Property →
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="mt-8">
-          <DocumentRepository entityType="transaction" entityId={id} />
-        </div>
-
         {/* Sellers & Buyers */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2 mt-6">
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900">Sellers</h2>
@@ -545,6 +504,47 @@ export default function TransactionViewPage({
             sellers={sellers}
             buyers={buyers}
           />
+        </div>
+
+        {/* Properties Section (only for Property transactions) */}
+        {transaction.sale_type === "Property" && properties.length > 0 && (
+          <div className="bg-white shadow rounded-lg mt-6">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Properties
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3">
+                {properties.map((property) => (
+                  <div
+                    key={property.id}
+                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
+                    onClick={() => router.push(`/properties/${property.id}`)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">
+                          {property.address}
+                        </p>
+                      </div>
+                      <Link
+                        href={`/properties/${property.id}`}
+                        className="text-blue-600 hover:text-blue-900 text-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View Property →
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-6">
+          <DocumentRepository entityType="transaction" entityId={id} />
         </div>
 
         {/* Tasks Section */}

@@ -9,6 +9,7 @@ import {
   WireInstruction,
 } from "@/types/settlement";
 import { WireInstructionModal } from "./WireInstructionModal";
+import { AccountingTable } from "@/components/AccountingTable";
 
 interface FinalSettlementStatementProps {
   transactionId: string;
@@ -327,6 +328,94 @@ export function FinalSettlementStatement({
     setShowDocumentPicker(false);
   };
 
+  const applyFundsToExchange = async (sellerId: string, value: number) => {
+    try {
+      // Update settlement seller
+      const { error } = await supabase
+        .from("settlement_sellers")
+        .update({ funds_to_exchange: value })
+        .eq("id", sellerId);
+
+      if (error) throw error;
+
+      // Create/update accounting entry
+      const seller = settlementSellers.find((s) => s.id === sellerId);
+      
+      if (seller && seller.current_exchange_id) {
+        // Check if accounting entry already exists for this settlement seller
+        const { data: existingEntry } = await supabase
+          .from("accounting_entries")
+          .select("id")
+          .eq("settlement_seller_id", sellerId)
+          .eq("entry_type", "sale_proceeds")
+          .maybeSingle();
+
+        const accountingData = {
+          date: new Date().toISOString().split('T')[0],
+          credit: value,
+          debit: 0,
+          description: "Funds to Exchange (Sale Proceeds)",
+          entry_type: "sale_proceeds",
+          to_exchange_id: seller.current_exchange_id,
+          from_exchange_id: null,
+          transaction_id: parseInt(transactionId),
+          settlement_seller_id: sellerId,
+          settlement_buyer_id: null,
+          settlement_type: "seller" as const,
+        };
+
+        if (existingEntry) {
+          // Update existing entry
+          const { error: updateError } = await supabase
+            .from("accounting_entries")
+            .update(accountingData)
+            .eq("id", existingEntry.id);
+
+          if (updateError) {
+            console.error("Failed to update accounting entry:", updateError);
+          }
+        } else {
+          // Create new entry
+          const { data: newEntry, error: insertError } = await supabase
+            .from("accounting_entries")
+            .insert(accountingData)
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error("Failed to create accounting entry:", insertError);
+          } else if (newEntry) {
+            // Create task "Receipt of funds"
+            const { data: task, error: taskError } = await supabase
+              .from("tasks")
+              .insert({
+                title: `Receipt of funds - $${value} sale proceeds`,
+                status: "pending",
+                entity_type: "transaction",
+                entity_id: parseInt(transactionId),
+              })
+              .select()
+              .single();
+
+            if (taskError) {
+              console.error("Failed to create task:", taskError);
+            } else if (task) {
+              // Link task to accounting entry
+              await supabase
+                .from("accounting_entries")
+                .update({ task_id: task.id })
+                .eq("id", newEntry.id);
+            }
+          }
+        }
+      }
+
+      await loadData();
+    } catch (error) {
+      console.error("Error applying funds to exchange:", error);
+    }
+  };
+
   const updateSettlementSeller = async (
     id: string,
     field: string,
@@ -486,6 +575,7 @@ export function FinalSettlementStatement({
                     key={seller.id}
                     seller={seller}
                     onUpdate={updateSettlementSeller}
+                    onApplyFundsToExchange={applyFundsToExchange}
                     onWireInstructions={() =>
                       setSelectedWireInstructionEntity({
                         type: "seller",
@@ -517,6 +607,16 @@ export function FinalSettlementStatement({
               </div>
             </div>
           )}
+
+        {/* Accounting Table - shown below Settlement Sellers/Buyers */}
+        {finalFile && (
+          <div className="mt-6">
+            <AccountingTable
+              transactionId={parseInt(transactionId)}
+              onEntryChange={() => loadData()}
+            />
+          </div>
+        )}
       </div>
 
       {/* Wire Instruction Modal */}
@@ -541,15 +641,31 @@ interface SettlementSellerCardProps {
   seller: any;
   onUpdate: (id: string, field: string, value: any) => void;
   onWireInstructions: () => void;
+  onApplyFundsToExchange: (id: string, value: number) => void;
 }
 
 function SettlementSellerCard({
   seller,
   onUpdate,
   onWireInstructions,
+  onApplyFundsToExchange,
 }: SettlementSellerCardProps) {
+  const [fundsToExchange, setFundsToExchange] = React.useState(seller.funds_to_exchange || "");
+  const [isSaving, setIsSaving] = React.useState(false);
+  
   const businessNames = seller.tax_seller?.business_names || [];
   const businessName = businessNames.length > 0 ? businessNames[0].name : "N/A";
+
+  // Update local state when seller prop changes
+  React.useEffect(() => {
+    setFundsToExchange(seller.funds_to_exchange || "");
+  }, [seller.funds_to_exchange]);
+
+  const handleApplyFunds = async () => {
+    setIsSaving(true);
+    await onApplyFundsToExchange(seller.id, parseFloat(fundsToExchange) || 0);
+    setIsSaving(false);
+  };
 
   return (
     <div className="border rounded-lg p-4 space-y-3">
@@ -623,19 +739,22 @@ function SettlementSellerCard({
         </div>
         <div>
           <label className="text-xs text-gray-600">Funds to Exchange:</label>
-          <input
-            type="number"
-            step="0.01"
-            value={seller.funds_to_exchange || ""}
-            onChange={(e) =>
-              onUpdate(
-                seller.id,
-                "funds_to_exchange",
-                parseFloat(e.target.value) || null
-              )
-            }
-            className="w-full px-2 py-1 border rounded text-sm"
-          />
+          <div className="flex gap-1">
+            <input
+              type="number"
+              step="0.01"
+              value={fundsToExchange}
+              onChange={(e) => setFundsToExchange(e.target.value)}
+              className="flex-1 px-2 py-1 border rounded text-sm"
+            />
+            <button
+              onClick={handleApplyFunds}
+              disabled={isSaving}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {isSaving ? "..." : "Apply"}
+            </button>
+          </div>
         </div>
         <div>
           <label className="text-xs text-gray-600">Funds to Exchanger:</label>
