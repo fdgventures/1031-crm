@@ -10,11 +10,23 @@ interface User {
   email?: string;
 }
 
+// Функция для добавления таймаута к промисам
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Request timeout")), timeoutMs)
+    ),
+  ]);
+}
+
 export default function HeaderUser() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [profileId, setProfileId] = useState<number | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const router = useRouter();
   const supabase = useMemo(
     () => (isSupabaseConfigured ? getSupabaseClient() : null),
@@ -23,22 +35,27 @@ export default function HeaderUser() {
 
   useEffect(() => {
     if (!supabase) {
+      setIsLoading(false);
       return;
     }
 
     const checkUser = async () => {
       try {
+        // Добавляем таймаут 5 секунд для всех запросов
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await withTimeout(supabase.auth.getUser(), 5000);
         setUser(user);
 
         if (user) {
-          const { data: userProfile } = await supabase
-            .from("user_profiles")
-            .select("role_type")
-            .eq("id", user.id)
-            .single();
+          const { data: userProfile } = await withTimeout(
+            supabase
+              .from("user_profiles")
+              .select("role_type")
+              .eq("id", user.id)
+              .single(),
+            5000
+          );
 
           const adminRoles = [
             "workspace_owner",
@@ -47,11 +64,14 @@ export default function HeaderUser() {
           ];
           setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
 
-          const { data: profileData } = await supabase
-            .from("profile")
-            .select("id, avatar_url")
-            .eq("user_id", user.id)
-            .maybeSingle();
+          const { data: profileData } = await withTimeout(
+            supabase
+              .from("profile")
+              .select("id, avatar_url")
+              .eq("user_id", user.id)
+              .maybeSingle(),
+            5000
+          );
 
           if (profileData) {
             setProfileId(profileData.id);
@@ -67,11 +87,19 @@ export default function HeaderUser() {
         }
       } catch (err) {
         console.error("Supabase auth error:", err);
+        // При ошибке все равно позволяем использовать приложение
+        setUser(null);
+        setIsAdmin(false);
+        setProfileId(null);
+        setAvatarUrl(null);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     checkUser().catch((err) => {
       console.error("Supabase auth error:", err);
+      setIsLoading(false);
     });
 
     const {
@@ -81,11 +109,14 @@ export default function HeaderUser() {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          const { data: userProfile } = await supabase
-            .from("user_profiles")
-            .select("role_type")
-            .eq("id", session.user.id)
-            .single();
+          const { data: userProfile } = await withTimeout(
+            supabase
+              .from("user_profiles")
+              .select("role_type")
+              .eq("id", session.user.id)
+              .single(),
+            5000
+          );
 
           const adminRoles = [
             "workspace_owner",
@@ -94,11 +125,14 @@ export default function HeaderUser() {
           ];
           setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
 
-          const { data: profileData } = await supabase
-            .from("profile")
-            .select("id, avatar_url")
-            .eq("user_id", session.user.id)
-            .maybeSingle();
+          const { data: profileData } = await withTimeout(
+            supabase
+              .from("profile")
+              .select("id, avatar_url")
+              .eq("user_id", session.user.id)
+              .maybeSingle(),
+            5000
+          );
 
           if (profileData) {
             setProfileId(profileData.id);
@@ -129,11 +163,23 @@ export default function HeaderUser() {
   }
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setIsAdmin(false);
-    setProfileId(null);
-    window.location.href = "/admin/signin";
+    setIsSigningOut(true);
+    try {
+      // Добавляем таймаут для signOut, если не сработает за 3 секунды, все равно выходим
+      await withTimeout(supabase.auth.signOut(), 3000);
+    } catch (err) {
+      console.error("Error signing out:", err);
+      // Даже если произошла ошибка, принудительно выходим локально
+    } finally {
+      // Очищаем состояние и перенаправляем
+      setUser(null);
+      setIsAdmin(false);
+      setProfileId(null);
+      setAvatarUrl(null);
+      setIsSigningOut(false);
+      // Используем replace для перенаправления
+      window.location.href = "/admin/signin";
+    }
   };
 
   const handleProfileClick = () => {
@@ -141,6 +187,16 @@ export default function HeaderUser() {
       router.push(`/profiles/${profileId}`);
     }
   };
+
+  // Показываем индикатор загрузки во время начальной загрузки
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+        <span className="text-sm text-gray-600">Загрузка...</span>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -168,6 +224,7 @@ export default function HeaderUser() {
           <button
             onClick={handleProfileClick}
             className="text-sm text-gray-700 hover:text-blue-600 hover:underline"
+            disabled={isSigningOut}
           >
             {user.email}
           </button>
@@ -176,15 +233,24 @@ export default function HeaderUser() {
         )}
         <button
           onClick={handleSignOut}
-          className="text-gray-600 hover:text-gray-900 text-xs font-medium"
+          disabled={isSigningOut}
+          className="text-gray-600 hover:text-gray-900 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
         >
-          Sign Out
+          {isSigningOut ? (
+            <>
+              <div className="animate-spin h-3 w-3 border-2 border-gray-600 border-t-transparent rounded-full"></div>
+              <span>Выход...</span>
+            </>
+          ) : (
+            "Sign Out"
+          )}
         </button>
       </div>
       {profileId ? (
         <button
           onClick={handleProfileClick}
-          className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium hover:bg-blue-700 transition-colors overflow-hidden"
+          disabled={isSigningOut}
+          className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium hover:bg-blue-700 transition-colors overflow-hidden disabled:opacity-50"
         >
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
