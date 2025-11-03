@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
+import { FinalSettlementStatement } from "@/components/FinalSettlementStatement";
 
 interface Transaction {
   id: number;
@@ -535,6 +536,15 @@ export default function TransactionViewPage({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Final Settlement Statement */}
+        <div className="mt-6">
+          <FinalSettlementStatement
+            transactionId={id}
+            sellers={sellers}
+            buyers={buyers}
+          />
         </div>
 
         {/* Tasks Section */}

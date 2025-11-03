@@ -31,7 +31,7 @@ type NewEntityInsert = {
 
 export default function ProfilesPage() {
   const router = useRouter();
-  const supabase = getSupabaseClient();
+  const supabase = React.useMemo(() => getSupabaseClient(), []);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +42,8 @@ export default function ProfilesPage() {
   );
   const [formData, setFormData] = useState({
     name: "",
+    first_name: "",
+    last_name: "",
     email: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +114,18 @@ export default function ProfilesPage() {
     void loadProfiles();
   }, [loadProfiles]);
 
+  // Clear form when switching tabs
+  useEffect(() => {
+    setFormData({
+      name: "",
+      first_name: "",
+      last_name: "",
+      email: "",
+    });
+    setError(null);
+    setSuccess(null);
+  }, [activeTab]);
+
   const handleCreateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -137,15 +151,29 @@ export default function ProfilesPage() {
 
         setSuccess("Entity created successfully!");
       } else {
-        // Create individual profile (this part can be extended later if needed)
-        throw new Error(
-          "Creating individual profiles from this page is not yet implemented"
-        );
+        // Create individual profile
+        const profileInsertData = {
+          first_name: formData.first_name.trim(),
+          last_name: formData.last_name.trim(),
+          email: formData.email.trim() || null,
+        };
+
+        const { error } = await supabase
+          .from("profile")
+          .insert(profileInsertData)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setSuccess("Profile created successfully!");
       }
 
       setShowCreateForm(false);
       setFormData({
         name: "",
+        first_name: "",
+        last_name: "",
         email: "",
       });
       await loadProfiles();
@@ -231,26 +259,58 @@ export default function ProfilesPage() {
             </h2>
             <form onSubmit={handleCreateProfile}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label={activeTab === "entities" ? "Company Name *" : "Name *"}
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  required
-                  placeholder={
-                    activeTab === "entities" ? "Company Name" : "Name"
-                  }
-                />
-                <Input
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  placeholder="email@example.com"
-                />
+                {activeTab === "entities" ? (
+                  <>
+                    <Input
+                      label="Company Name *"
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
+                      required
+                      placeholder="Company Name"
+                    />
+                    <Input
+                      label="Email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      placeholder="email@example.com"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      label="First Name *"
+                      value={formData.first_name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, first_name: e.target.value })
+                      }
+                      required
+                      placeholder="First Name"
+                    />
+                    <Input
+                      label="Last Name *"
+                      value={formData.last_name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, last_name: e.target.value })
+                      }
+                      required
+                      placeholder="Last Name"
+                    />
+                    <Input
+                      label="Email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      placeholder="email@example.com"
+                    />
+                  </>
+                )}
               </div>
               <div className="mt-6">
                 <Button type="submit" variant="primary">

@@ -81,14 +81,38 @@ export const ensureDocumentRepository = async (
     throw insertRepositoryError ?? new Error("Failed to create repository");
   }
 
-  const { error: rootFolderError } = await supabase.from("document_folders").insert({
-    repository_id: insertedRepository.id,
-    parent_id: null,
-    name: "Documents",
-  });
+  // Create folders based on entity type
+  if (entityType === "transaction") {
+    // For transactions create four special folders
+    const transactionFolders = [
+      "Settlement Statement documents",
+      "Wire Approvals",
+      "Exchange Documents",
+      "Contract Documents",
+    ];
 
-  if (rootFolderError) {
-    throw rootFolderError;
+    const { error: foldersError } = await supabase.from("document_folders").insert(
+      transactionFolders.map((folderName) => ({
+        repository_id: insertedRepository.id,
+        parent_id: null,
+        name: folderName,
+      }))
+    );
+
+    if (foldersError) {
+      throw foldersError;
+    }
+  } else {
+    // For other types create standard "Documents" folder
+    const { error: rootFolderError } = await supabase.from("document_folders").insert({
+      repository_id: insertedRepository.id,
+      parent_id: null,
+      name: "Documents",
+    });
+
+    if (rootFolderError) {
+      throw rootFolderError;
+    }
   }
 
   return insertedRepository.id;

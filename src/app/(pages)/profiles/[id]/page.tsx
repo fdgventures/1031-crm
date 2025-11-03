@@ -67,7 +67,8 @@ export default function ProfileViewPage({
 }) {
   const router = useRouter();
   const { id } = use(params);
-  const supabase = getSupabaseClient();
+  const supabaseRef = React.useRef(getSupabaseClient());
+  const supabase = supabaseRef.current;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +117,7 @@ export default function ProfileViewPage({
     } finally {
       setLoading(false);
     }
-  }, [id, supabase]);
+  }, [id]);
 
   const loadInvitation = useCallback(async () => {
     try {
@@ -133,7 +134,7 @@ export default function ProfileViewPage({
     } catch (err) {
       console.log("No active invitation found", err);
     }
-  }, [id, supabase]);
+  }, [id]);
 
   const loadTaxAccounts = useCallback(async () => {
     try {
@@ -148,7 +149,7 @@ export default function ProfileViewPage({
     } catch (err) {
       console.error("Failed to load tax accounts:", err);
     }
-  }, [id, supabase]);
+  }, [id]);
 
   const loadProperties = useCallback(async () => {
     try {
@@ -195,53 +196,69 @@ export default function ProfileViewPage({
     } catch (err) {
       console.error("Failed to load properties:", err);
     }
-  }, [supabase]);
-
-  const checkAdminAndLoadProfile = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      // Проверяем, является ли пользователь админом
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        const { data: userProfile } = await supabase
-          .from("user_profiles")
-          .select("role_type")
-          .eq("id", user.id)
-          .single();
-
-        const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
-        const isUserAdmin = adminRoles.includes(userProfile?.role_type || "");
-        setIsAdmin(isUserAdmin);
-
-        // Пользователь может редактировать, если он админ или владелец профиля (по user_id)
-        const { data: currentProfile } = await supabase
-          .from("profile")
-          .select("user_id")
-          .eq("id", id)
-          .single();
-
-        const isOwner = currentProfile?.user_id === user.id;
-        setCanEdit(isUserAdmin || isOwner);
-      }
-
-      await loadProfile();
-      await loadInvitation();
-      await loadTaxAccounts();
-      await loadProperties();
-    } catch (err) {
-      console.error("Error checking admin:", err);
-      setError(getErrorMessage(err, "Failed to load profile"));
-      setLoading(false);
-    }
-  }, [id, loadInvitation, loadProfile, loadProperties, loadTaxAccounts, supabase]);
+  }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const checkAdminAndLoadProfile = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Проверяем, является ли пользователь админом
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user && isMounted) {
+          const { data: userProfile } = await supabase
+            .from("user_profiles")
+            .select("role_type")
+            .eq("id", user.id)
+            .single();
+
+          const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
+          const isUserAdmin = adminRoles.includes(userProfile?.role_type || "");
+          
+          if (isMounted) {
+            setIsAdmin(isUserAdmin);
+          }
+
+          // Пользователь может редактировать, если он админ или владелец профиля (по user_id)
+          const { data: currentProfile } = await supabase
+            .from("profile")
+            .select("user_id")
+            .eq("id", id)
+            .single();
+
+          const isOwner = currentProfile?.user_id === user.id;
+          if (isMounted) {
+            setCanEdit(isUserAdmin || isOwner);
+          }
+        }
+
+        if (isMounted) {
+          await loadProfile();
+          await loadInvitation();
+          await loadTaxAccounts();
+          await loadProperties();
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.error("Error checking admin:", err);
+          setError(getErrorMessage(err, "Failed to load profile"));
+          setLoading(false);
+        }
+      }
+    };
+
     void checkAdminAndLoadProfile();
-  }, [checkAdminAndLoadProfile]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]); // Только ID, callbacks вызываются напрямую
 
   const avatarPreviewUrl = useMemo(() => {
     if (!avatarFile) {
@@ -462,7 +479,9 @@ export default function ProfileViewPage({
       }
 
       // Get current user for audit log
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       // Store old values for audit log
       const oldValues = {
@@ -487,49 +506,49 @@ export default function ProfileViewPage({
 
       // Create audit logs for changed fields
       const auditLogs = [];
-      
+
       if (oldValues.first_name !== editFirstName) {
         auditLogs.push({
-          entity_type: 'profile',
+          entity_type: "profile",
           entity_id: parseInt(id),
-          action_type: 'update',
-          field_name: 'first_name',
+          action_type: "update",
+          field_name: "first_name",
           old_value: oldValues.first_name || null,
           new_value: editFirstName,
           changed_by: user?.id || null,
         });
       }
-      
+
       if (oldValues.last_name !== editLastName) {
         auditLogs.push({
-          entity_type: 'profile',
+          entity_type: "profile",
           entity_id: parseInt(id),
-          action_type: 'update',
-          field_name: 'last_name',
+          action_type: "update",
+          field_name: "last_name",
           old_value: oldValues.last_name || null,
           new_value: editLastName,
           changed_by: user?.id || null,
         });
       }
-      
+
       if (oldValues.email !== editEmail) {
         auditLogs.push({
-          entity_type: 'profile',
+          entity_type: "profile",
           entity_id: parseInt(id),
-          action_type: 'update',
-          field_name: 'email',
+          action_type: "update",
+          field_name: "email",
           old_value: oldValues.email || null,
           new_value: editEmail,
           changed_by: user?.id || null,
         });
       }
-      
+
       if (oldValues.avatar_url !== avatarUrl && avatarFile) {
         auditLogs.push({
-          entity_type: 'profile',
+          entity_type: "profile",
           entity_id: parseInt(id),
-          action_type: 'update',
-          field_name: 'avatar_url',
+          action_type: "update",
+          field_name: "avatar_url",
           old_value: oldValues.avatar_url || null,
           new_value: avatarUrl || null,
           changed_by: user?.id || null,
@@ -539,11 +558,11 @@ export default function ProfileViewPage({
       // Insert audit logs
       if (auditLogs.length > 0) {
         const { error: auditError } = await supabase
-          .from('audit_logs')
+          .from("audit_logs")
           .insert(auditLogs);
-        
+
         if (auditError) {
-          console.error('Failed to create audit logs:', auditError);
+          console.error("Failed to create audit logs:", auditError);
         } else {
           // Trigger log refresh
           setLogRefreshTrigger(Date.now());
@@ -1209,9 +1228,7 @@ export default function ProfileViewPage({
       {/* Properties Section */}
       <div className="bg-white shadow rounded-lg mt-6">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">
-            My Properties
-          </h2>
+          <h2 className="text-xl font-semibold text-gray-900">My Properties</h2>
         </div>
 
         <div className="p-6">
@@ -1256,7 +1273,9 @@ export default function ProfileViewPage({
         <TaskManager
           entityType="profile"
           entityId={parseInt(id)}
-          entityName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
+          entityName={
+            profile ? `${profile.first_name} ${profile.last_name}` : undefined
+          }
           onLogCreate={() => setLogRefreshTrigger(Date.now())}
         />
       </div>
@@ -1266,7 +1285,9 @@ export default function ProfileViewPage({
         <LogViewer
           entityType="profile"
           entityId={parseInt(id)}
-          entityName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
+          entityName={
+            profile ? `${profile.first_name} ${profile.last_name}` : undefined
+          }
           refreshTrigger={logRefreshTrigger}
         />
       </div>

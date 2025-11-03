@@ -51,7 +51,7 @@ export default function HeaderUser() {
             .from("profile")
             .select("id, avatar_url")
             .eq("user_id", user.id)
-            .single();
+            .maybeSingle();
 
           if (profileData) {
             setProfileId(profileData.id);
@@ -98,7 +98,7 @@ export default function HeaderUser() {
             .from("profile")
             .select("id, avatar_url")
             .eq("user_id", session.user.id)
-            .single();
+            .maybeSingle();
 
           if (profileData) {
             setProfileId(profileData.id);

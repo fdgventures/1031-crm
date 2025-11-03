@@ -425,7 +425,9 @@ export default function TaxAccountViewPage({
       // Get property's business name before removing
       const { data: property, error: propertyError } = await supabase
         .from("properties")
-        .select("business_name_id, business_name:business_name_id(id, name, tax_account_id)")
+        .select(
+          "business_name_id, business_name:business_name_id(id, name, tax_account_id)"
+        )
         .eq("id", propertyId)
         .single();
 
@@ -440,7 +442,8 @@ export default function TaxAccountViewPage({
       if (updateError) throw updateError;
 
       // Update ownership from "current" to "prior" if exists
-      const businessNameSelection = property.business_name as PropertyBusinessNameSelection;
+      const businessNameSelection =
+        property.business_name as PropertyBusinessNameSelection;
       const resolvedBusinessName = Array.isArray(businessNameSelection)
         ? businessNameSelection[0]
         : businessNameSelection;
@@ -450,7 +453,8 @@ export default function TaxAccountViewPage({
         resolvedBusinessName.name &&
         resolvedBusinessName.tax_account_id !== null
       ) {
-        const { name: businessNameValue, tax_account_id: taxAccountId } = resolvedBusinessName;
+        const { name: businessNameValue, tax_account_id: taxAccountId } =
+          resolvedBusinessName;
 
         const { error: ownershipUpdateError } = await supabase
           .from("property_ownership")

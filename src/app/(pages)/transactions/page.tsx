@@ -44,8 +44,8 @@ interface TransactionSeller {
 
 interface TransactionBuyer {
   id: string;
-  profile_id: number | null;
-  exchange_id: number | null;
+  tax_account_id: number | null; // Changed from profile_id to tax_account_id
+  exchange_ids: number[]; // Array of exchanges
   contract_percent: string;
   non_exchange_name: string;
   is_non_exchange?: boolean; // Flag to identify non-exchange buyers
@@ -82,7 +82,7 @@ type PendingOwnershipInsert = {
 
 export default function TransactionsPage() {
   const router = useRouter();
-  const supabase = getSupabaseClient();
+  const supabase = React.useMemo(() => getSupabaseClient(), []);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -93,11 +93,14 @@ export default function TransactionsPage() {
 
   // Form fields
   const [contractPurchasePrice, setContractPurchasePrice] = useState("");
+  const [formattedPrice, setFormattedPrice] = useState("");
   const [contractDate, setContractDate] = useState("");
   const [pdfContractFile, setPdfContractFile] = useState<File | null>(null);
   const [saleType, setSaleType] = useState<"Property" | "Entity">("Property");
   const [propertyId, setPropertyId] = useState<string>("");
   const [propertySearch, setPropertySearch] = useState("");
+  const [showCreateProperty, setShowCreateProperty] = useState(false);
+  const [newPropertyAddress, setNewPropertyAddress] = useState("");
   const [closingAgentId, setClosingAgentId] = useState<string>("");
   const [closingAgentSearch, setClosingAgentSearch] = useState("");
   const [sellers, setSellers] = useState<TransactionSeller[]>([]);
@@ -108,13 +111,14 @@ export default function TransactionsPage() {
   const [filteredProfiles, setFilteredProfiles] = useState<Profile[]>([]);
   const [profilesWithExchanges, setProfilesWithExchanges] = useState<Set<number>>(new Set());
   const [taxAccounts, setTaxAccounts] = useState<TaxAccount[]>([]);
+  const [taxAccountsWithExchanges, setTaxAccountsWithExchanges] = useState<Set<number>>(new Set());
   const [businessNames, setBusinessNames] = useState<{ [key: string]: BusinessName[] }>({});
   const [availableProperties, setAvailableProperties] = useState<Array<{ id: number; address: string }>>([]);
   const [filteredProperties, setFilteredProperties] = useState<Array<{ id: number; address: string }>>([]);
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
   const [showClosingAgentDropdown, setShowClosingAgentDropdown] = useState(false);
   const [sellerTaxAccountSearch, setSellerTaxAccountSearch] = useState<{ [key: string]: string }>({});
-  const [buyerProfileSearch, setBuyerProfileSearch] = useState<{ [key: string]: string }>({});
+  const [buyerTaxAccountSearch, setBuyerTaxAccountSearch] = useState<{ [key: string]: string }>({});
   const [showBuyerDropdown, setShowBuyerDropdown] = useState<{ [key: string]: boolean }>({});
   const [showSellerDropdown, setShowSellerDropdown] = useState<{ [key: string]: boolean }>({});
   const [buyerExchanges, setBuyerExchanges] = useState<{ [key: string]: Array<{ id: number; exchange_number: string; tax_account_id: number }> }>({});
@@ -169,6 +173,16 @@ export default function TransactionsPage() {
       setFilteredProperties(availableProperties.slice(0, 10));
     }
   }, [propertySearch, availableProperties]);
+
+  // Debug: Log buyerExchanges changes
+  useEffect(() => {
+    console.log('🔄 buyerExchanges state updated:', buyerExchanges);
+  }, [buyerExchanges]);
+
+  // Debug: Log buyers state
+  useEffect(() => {
+    console.log('👥 Buyers state:', buyers);
+  }, [buyers]);
 
 
   const loadTransactions = useCallback(async () => {
@@ -250,6 +264,19 @@ export default function TransactionsPage() {
 
       if (error) throw error;
       setTaxAccounts(data || []);
+
+      // Load which tax accounts have exchanges
+      const { data: exchangesData, error: exchangesError } = await supabase
+        .from("exchanges")
+        .select("tax_account_id");
+
+      if (!exchangesError && exchangesData) {
+        const taxAccountIdsWithExchanges = new Set(
+          exchangesData.map((e) => e.tax_account_id)
+        );
+        setTaxAccountsWithExchanges(taxAccountIdsWithExchanges);
+        console.log('💼 Tax Accounts with exchanges:', taxAccountIdsWithExchanges);
+      }
     } catch (err) {
       console.error("Failed to load tax accounts:", err);
       // Don't throw - tax accounts loading failure shouldn't block page load
@@ -528,8 +555,8 @@ export default function TransactionsPage() {
   const addBuyer = () => {
     const newBuyer: TransactionBuyer = {
       id: `buyer-${Date.now()}`,
-      profile_id: null,
-      exchange_id: null,
+      tax_account_id: null,
+      exchange_ids: [],
       contract_percent: "",
       non_exchange_name: "",
       is_non_exchange: false,
@@ -541,17 +568,43 @@ export default function TransactionsPage() {
     setBuyers(buyers.filter((b) => b.id !== id));
   };
 
-  const updateBuyer = (id: string, field: keyof TransactionBuyer, value: string | number | null) => {
+  const updateBuyer = (id: string, field: keyof TransactionBuyer, value: any) => {
+    console.log('🔧 Updating buyer:', id, 'field:', field, 'value:', value);
     setBuyers(
-      buyers.map((b) => (b.id === id ? { ...b, [field]: value } : b))
+      buyers.map((b) => {
+        if (b.id === id) {
+          const updated = { ...b, [field]: value };
+          console.log('✏️ Updated buyer object:', updated);
+          return updated;
+        }
+        return b;
+      })
+    );
+  };
+
+  const toggleBuyerExchange = (buyerId: string, exchangeId: number) => {
+    setBuyers(
+      buyers.map((b) => {
+        if (b.id === buyerId) {
+          const currentExchanges = b.exchange_ids || [];
+          const isSelected = currentExchanges.includes(exchangeId);
+          return {
+            ...b,
+            exchange_ids: isSelected
+              ? currentExchanges.filter(id => id !== exchangeId)
+              : [...currentExchanges, exchangeId]
+          };
+        }
+        return b;
+      })
     );
   };
 
   const addNonExchangeBuyer = () => {
     const newBuyer: TransactionBuyer = {
       id: `buyer-ne-${Date.now()}`,
-      profile_id: null,
-      exchange_id: null,
+      tax_account_id: null,
+      exchange_ids: [],
       contract_percent: "",
       non_exchange_name: "",
       is_non_exchange: true, // Mark as non-exchange
@@ -567,48 +620,47 @@ export default function TransactionsPage() {
       .slice(0, 10);
   };
 
-  const getFilteredProfilesForBuyer = (buyerId: string) => {
-    const search = buyerProfileSearch[buyerId] || "";
+  const getFilteredTaxAccountsForBuyer = (buyerId: string) => {
+    const search = buyerTaxAccountSearch[buyerId] || "";
     
-    // Only show profiles that have exchanges
-    const filteredProfilesList = profiles.filter((p) => profilesWithExchanges.has(p.id));
+    // Only show tax accounts that have exchanges
+    const taxAccountsWithExchangesList = taxAccounts.filter((ta) => 
+      taxAccountsWithExchanges.has(ta.id)
+    );
     
-    if (!search) return filteredProfilesList.slice(0, 10);
-    return filteredProfilesList
-      .filter(
-        (p) =>
-          `${p.first_name} ${p.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
-          (p.email && p.email.toLowerCase().includes(search.toLowerCase()))
-      )
+    if (!search) return taxAccountsWithExchangesList.slice(0, 10);
+    return taxAccountsWithExchangesList
+      .filter((ta) => ta.name.toLowerCase().includes(search.toLowerCase()))
       .slice(0, 10);
   };
 
-  const loadBuyerExchanges = async (buyerId: string, profileId: number) => {
+  const handlePriceChange = (value: string) => {
+    // Remove all non-numeric characters except decimal point
+    const numericValue = value.replace(/[^\d.]/g, '');
+    setContractPurchasePrice(numericValue);
+    
+    // Format with thousand separators
+    if (numericValue) {
+      const parts = numericValue.split('.');
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      setFormattedPrice(parts.join('.'));
+    } else {
+      setFormattedPrice('');
+    }
+  };
+
+  const loadBuyerExchanges = async (buyerId: string, taxAccountId: number) => {
     try {
-      // Get buyer's tax accounts
-      const { data: buyerTaxAccounts, error: buyerTaxAccountsError } = await supabase
-        .from("tax_accounts")
-        .select("id")
-        .eq("profile_id", profileId);
-
-      if (buyerTaxAccountsError) {
-        console.error("Error fetching tax accounts for buyer:", buyerTaxAccountsError);
-        setBuyerExchanges((prev) => ({ ...prev, [buyerId]: [] }));
-        return;
-      }
-
-      if (!buyerTaxAccounts || buyerTaxAccounts.length === 0) {
-        setBuyerExchanges((prev) => ({ ...prev, [buyerId]: [] }));
-        return;
-      }
-
-      // Get exchanges for these tax accounts
-      const taxAccountIds = buyerTaxAccounts.map((ta) => ta.id);
+      console.log('🔍 Loading exchanges for buyer:', buyerId, 'tax account:', taxAccountId);
+      
+      // Get exchanges for this tax account
       const { data: exchanges, error: exchangesError } = await supabase
         .from("exchanges")
         .select("id, exchange_number, tax_account_id")
-        .in("tax_account_id", taxAccountIds)
+        .eq("tax_account_id", taxAccountId)
         .order("created_at", { ascending: false });
+
+      console.log('🔄 Exchanges found:', exchanges);
 
       if (exchangesError) {
         console.error("Error fetching exchanges for buyer:", exchangesError);
@@ -620,6 +672,8 @@ export default function TransactionsPage() {
         ...prev,
         [buyerId]: exchanges || [],
       }));
+      
+      console.log('✅ Buyer exchanges set:', exchanges?.length || 0);
     } catch (err) {
       console.error("Error loading buyer exchanges:", err);
       setBuyerExchanges((prev) => ({ ...prev, [buyerId]: [] }));
@@ -674,14 +728,25 @@ export default function TransactionsPage() {
 
       // Validate property for Property transactions
       if (saleType === "Property") {
-        if (!propertyId) {
-          throw new Error("Property must be selected for Property transactions");
+        if (showCreateProperty) {
+          if (!newPropertyAddress || newPropertyAddress.trim() === "") {
+            throw new Error("Property address is required");
+          }
+        } else {
+          if (!propertyId) {
+            throw new Error("Property must be selected or created for Property transactions");
+          }
         }
       }
 
       // Validate buyers
+      console.log('🔍 Validating buyers:', buyers);
       for (const buyer of buyers) {
-        const isNonExchange = buyer.is_non_exchange || (buyer.non_exchange_name && buyer.non_exchange_name.trim() !== "" && !buyer.profile_id);
+        console.log('👤 Checking buyer:', buyer);
+        const isNonExchange = buyer.is_non_exchange || (buyer.non_exchange_name && buyer.non_exchange_name.trim() !== "" && !buyer.tax_account_id);
+        console.log('   isNonExchange:', isNonExchange);
+        console.log('   tax_account_id:', buyer.tax_account_id);
+        console.log('   exchange_ids:', buyer.exchange_ids);
         
         if (isNonExchange) {
           // Non-exchange buyer: only needs name and contract %
@@ -692,20 +757,17 @@ export default function TransactionsPage() {
             throw new Error("Non-exchange buyer must have a Contract %");
           }
         } else {
-          // Regular buyer: needs profile, contract %, and must have an exchange
-          if (!buyer.profile_id) {
-            throw new Error("Each buyer must have a Profile");
+          // Regular buyer: needs tax account, contract %, and must have at least one exchange
+          if (!buyer.tax_account_id) {
+            console.error('❌ Buyer missing tax_account_id:', buyer);
+            throw new Error("Each buyer must have a Tax Account");
           }
           if (!buyer.contract_percent || parseFloat(buyer.contract_percent) <= 0) {
             throw new Error("Each buyer must have a Contract %");
           }
-          // Check if buyer profile has an exchange
-          if (!profilesWithExchanges.has(buyer.profile_id)) {
-            throw new Error(`Buyer profile must have at least one exchange. Selected buyer does not have any exchanges.`);
-          }
-          // Check if exchange is selected
-          if (!buyer.exchange_id) {
-            throw new Error(`Buyer must have an exchange selected.`);
+          // Check if at least one exchange is selected
+          if (!buyer.exchange_ids || buyer.exchange_ids.length === 0) {
+            throw new Error(`Buyer must have at least one exchange selected.`);
           }
         }
       }
@@ -771,12 +833,26 @@ export default function TransactionsPage() {
         if (sellersError) throw sellersError;
       }
 
-      // Create buyers
-      const buyersData = buyers.map((buyer) => ({
-        transaction_id: transaction.id,
-        profile_id: buyer.profile_id || null,
-        contract_percent: parseFloat(buyer.contract_percent),
-        non_exchange_name: buyer.non_exchange_name || null,
+      // Create buyers - need to get profile_id from tax_account
+      const buyersData = await Promise.all(buyers.map(async (buyer) => {
+        let profileId = null;
+        
+        if (buyer.tax_account_id) {
+          const { data: taxAccount } = await supabase
+            .from("tax_accounts")
+            .select("profile_id")
+            .eq("id", buyer.tax_account_id)
+            .single();
+          
+          profileId = taxAccount?.profile_id || null;
+        }
+        
+        return {
+          transaction_id: transaction.id,
+          profile_id: profileId,
+          contract_percent: parseFloat(buyer.contract_percent),
+          non_exchange_name: buyer.non_exchange_name || null,
+        };
       }));
 
       if (buyersData.length > 0) {
@@ -849,45 +925,31 @@ export default function TransactionsPage() {
         }
       }
 
-      // For buyers, link existing exchanges to transaction (they must already have one)
+      // For buyers, link existing exchanges to transaction
       for (const buyer of buyers) {
-        // Check if buyer is non-exchange (similar to validation logic)
+        // Check if buyer is non-exchange
         const isNonExchangeBuyer = buyer.is_non_exchange || 
-          (buyer.non_exchange_name && buyer.non_exchange_name.trim() !== "" && !buyer.profile_id);
+          (buyer.non_exchange_name && buyer.non_exchange_name.trim() !== "" && !buyer.tax_account_id);
         
-        if (buyer.profile_id && !isNonExchangeBuyer) {
+        if (buyer.tax_account_id && !isNonExchangeBuyer) {
           try {
-            // Get buyer's tax accounts
-            const { data: buyerTaxAccounts, error: buyerTaxAccountsError } = await supabase
-              .from("tax_accounts")
-              .select("id")
-              .eq("profile_id", buyer.profile_id);
-
-            if (buyerTaxAccountsError) {
-              console.error(`Error fetching tax accounts for buyer: ${buyerTaxAccountsError.message}`);
+            // Use the selected exchanges (can be multiple)
+            if (!buyer.exchange_ids || buyer.exchange_ids.length === 0) {
+              console.error(`Buyer does not have any exchanges selected`);
               continue;
             }
 
-            if (!buyerTaxAccounts || buyerTaxAccounts.length === 0) {
-              console.error(`Buyer profile ${buyer.profile_id} does not have any tax accounts`);
-              continue;
-            }
+            // Link all selected exchanges to transaction as Purchase
+            for (const exchangeId of buyer.exchange_ids) {
+              const { error: linkError } = await supabase.from("exchange_transactions").insert({
+                exchange_id: exchangeId,
+                transaction_id: transaction.id,
+                transaction_type: "Purchase",
+              });
 
-            // Use the selected exchange
-            if (!buyer.exchange_id) {
-              console.error(`Buyer does not have an exchange selected`);
-              continue;
-            }
-
-            // Link the selected exchange to transaction as Purchase
-            const { error: linkError } = await supabase.from("exchange_transactions").insert({
-              exchange_id: buyer.exchange_id,
-              transaction_id: transaction.id,
-              transaction_type: "Purchase",
-            });
-
-            if (linkError) {
-              console.error(`Error linking exchange to transaction: ${linkError.message}`);
+              if (linkError) {
+                console.error(`Error linking exchange ${exchangeId} to transaction: ${linkError.message}`);
+              }
             }
           } catch (err) {
             console.error(`Error linking exchange for buyer:`, err);
@@ -896,9 +958,49 @@ export default function TransactionsPage() {
         }
       }
 
+      // Create property if needed
+      let finalPropertyId = propertyId;
+      
+      if (saleType === "Property" && showCreateProperty && newPropertyAddress) {
+        // Create new property
+        const { data: newProperty, error: propertyError } = await supabase
+          .from("properties")
+          .insert({ address: newPropertyAddress.trim() })
+          .select("id")
+          .single();
+
+        if (propertyError) throw propertyError;
+        finalPropertyId = newProperty.id.toString();
+
+        // Create current ownership for all sellers
+        const currentOwnershipPromises = sellers.map(async (seller) => {
+          const isNonExchangeSeller = seller.is_non_exchange || 
+            (seller.non_exchange_name && seller.non_exchange_name.trim() !== "" && !seller.tax_account_id);
+
+          const ownershipData: any = {
+            property_id: newProperty.id,
+            ownership_type: "current",
+            transaction_id: transaction.id,
+          };
+
+          if (isNonExchangeSeller) {
+            ownershipData.non_exchange_name = seller.non_exchange_name;
+          } else if (seller.tax_account_id) {
+            ownershipData.tax_account_id = seller.tax_account_id;
+            if (seller.vesting_name) {
+              ownershipData.vesting_name = seller.vesting_name;
+            }
+          }
+
+          return supabase.from("property_ownership").insert([ownershipData]);
+        });
+
+        await Promise.all(currentOwnershipPromises);
+      }
+
       // Create pending ownership for buyers if this is a Property transaction
-      if (saleType === "Property" && propertyId) {
-        const parsedPropertyId = Number.parseInt(propertyId, 10);
+      if (saleType === "Property" && finalPropertyId) {
+        const parsedPropertyId = Number.parseInt(finalPropertyId, 10);
 
         if (Number.isNaN(parsedPropertyId)) {
           throw new Error("Invalid property id");
@@ -911,29 +1013,20 @@ export default function TransactionsPage() {
             transaction_id: transaction.id,
           };
 
-          if (buyer.is_non_exchange || (buyer.non_exchange_name && buyer.non_exchange_name.trim() !== "" && !buyer.profile_id)) {
+          if (buyer.is_non_exchange || (buyer.non_exchange_name && buyer.non_exchange_name.trim() !== "" && !buyer.tax_account_id)) {
             ownershipData.non_exchange_name = buyer.non_exchange_name;
-          } else if (buyer.profile_id) {
-            // Get buyer's tax account for ownership
-            const { data: buyerTaxAccounts } = await supabase
-              .from("tax_accounts")
-              .select("id")
-              .eq("profile_id", buyer.profile_id)
+          } else if (buyer.tax_account_id) {
+            ownershipData.tax_account_id = buyer.tax_account_id;
+            
+            // Get first business name (vesting name) for this tax account
+            const { data: businessNames } = await supabase
+              .from("business_names")
+              .select("name")
+              .eq("tax_account_id", buyer.tax_account_id)
               .limit(1);
 
-            if (buyerTaxAccounts && buyerTaxAccounts.length > 0) {
-              ownershipData.tax_account_id = buyerTaxAccounts[0].id;
-              
-              // Get first business name (vesting name) for this tax account
-              const { data: businessNames } = await supabase
-                .from("business_names")
-                .select("name")
-                .eq("tax_account_id", buyerTaxAccounts[0].id)
-                .limit(1);
-
-              if (businessNames && businessNames.length > 0) {
-                ownershipData.vesting_name = businessNames[0].name;
-              }
+            if (businessNames && businessNames.length > 0) {
+              ownershipData.vesting_name = businessNames[0].name;
             }
           }
 
@@ -956,17 +1049,20 @@ export default function TransactionsPage() {
 
   const resetForm = () => {
     setContractPurchasePrice("");
+    setFormattedPrice("");
     setContractDate("");
     setPdfContractFile(null);
     setSaleType("Property");
     setPropertyId("");
     setPropertySearch("");
+    setShowCreateProperty(false);
+    setNewPropertyAddress("");
     setClosingAgentId("");
     setClosingAgentSearch("");
     setSellers([]);
     setBuyers([]);
     setSellerTaxAccountSearch({});
-    setBuyerProfileSearch({});
+    setBuyerTaxAccountSearch({});
     setShowBuyerDropdown({});
     setShowSellerDropdown({});
     setShowPropertyDropdown(false);
@@ -1107,16 +1203,17 @@ export default function TransactionsPage() {
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Contract Purchase Price (in dollars) *
                         </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={contractPurchasePrice}
-                          onChange={(e) => setContractPurchasePrice(e.target.value)}
-                          required
-                          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="0.00"
-                        />
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                          <input
+                            type="text"
+                            value={formattedPrice}
+                            onChange={(e) => handlePriceChange(e.target.value)}
+                            required
+                            className="w-full px-4 py-2 pl-7 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="0.00"
+                          />
+                        </div>
                       </div>
 
                       {/* Contract Date */}
@@ -1329,7 +1426,7 @@ export default function TransactionsPage() {
 
                                 <div className="mb-3">
                                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Vesting Name *
+                                    Vesting Name * (Business Name)
                                   </label>
                                   <select
                                     value={seller.vesting_name}
@@ -1351,6 +1448,11 @@ export default function TransactionsPage() {
                                       </option>
                                     ))}
                                   </select>
+                                  {seller.tax_account_id && (!businessNames[seller.id] || businessNames[seller.id].length === 0) && (
+                                    <p className="mt-1 text-xs text-yellow-600">
+                                      ⚠ This Tax Account has no Business Names. Create a Business Name for this Tax Account.
+                                    </p>
+                                  )}
                                 </div>
                               </>
                             ) : (
@@ -1416,9 +1518,9 @@ export default function TransactionsPage() {
 
                       {buyers.map((buyer, index) => {
                         // Determine if buyer is non-exchange: either flagged or has non_exchange_name filled
-                        const isNonExchange = buyer.is_non_exchange || (buyer.non_exchange_name !== "" && !buyer.profile_id);
-                        const selectedProfile = buyer.profile_id
-                          ? profiles.find((p) => p.id === buyer.profile_id)
+                        const isNonExchange = buyer.is_non_exchange || (buyer.non_exchange_name !== "" && !buyer.tax_account_id);
+                        const selectedTaxAccount = buyer.tax_account_id
+                          ? taxAccounts.find((ta) => ta.id === buyer.tax_account_id)
                           : null;
 
                         return (
@@ -1437,18 +1539,20 @@ export default function TransactionsPage() {
                             </div>
 
                             {!isNonExchange ? (
+                              <>
                               <div className="mb-3 relative dropdown-container">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Profile *
+                                  Tax Account *
                                 </label>
                                 <input
                                   type="text"
-                                  value={buyerProfileSearch[buyer.id] || (selectedProfile ? `${selectedProfile.first_name} ${selectedProfile.last_name}` : "")}
+                                  value={buyerTaxAccountSearch[buyer.id] || (selectedTaxAccount ? selectedTaxAccount.name : "")}
                                   onChange={(e) => {
-                                    const newSearch = { ...buyerProfileSearch };
+                                    const newSearch = { ...buyerTaxAccountSearch };
                                     newSearch[buyer.id] = e.target.value;
-                                    setBuyerProfileSearch(newSearch);
-                                    updateBuyer(buyer.id, "profile_id", null);
+                                    setBuyerTaxAccountSearch(newSearch);
+                                    updateBuyer(buyer.id, "tax_account_id", null);
+                                    updateBuyer(buyer.id, "exchange_ids", []);
                                     const newShow = { ...showBuyerDropdown };
                                     newShow[buyer.id] = true;
                                     setShowBuyerDropdown(newShow);
@@ -1458,95 +1562,93 @@ export default function TransactionsPage() {
                                     newShow[buyer.id] = true;
                                     setShowBuyerDropdown(newShow);
                                   }}
-                                  placeholder="Search profile..."
+                                  placeholder="Search tax account..."
                                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
-                                {selectedProfile && (
+                                {selectedTaxAccount && (
                                   <div className="mt-2 p-2 bg-blue-50 rounded-md">
                                     <p className="text-sm text-gray-700">
-                                      {selectedProfile.first_name} {selectedProfile.last_name}
-                                      {selectedProfile.email && ` (${selectedProfile.email})`}
+                                      {selectedTaxAccount.name}
                                     </p>
                                   </div>
                                 )}
-                                {showBuyerDropdown[buyer.id] && getFilteredProfilesForBuyer(buyer.id).length > 0 && (
+                                {showBuyerDropdown[buyer.id] && getFilteredTaxAccountsForBuyer(buyer.id).length > 0 && (
                                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                                    {getFilteredProfilesForBuyer(buyer.id).map((profile) => (
+                                    {getFilteredTaxAccountsForBuyer(buyer.id).map((taxAccount) => (
                                       <div
-                                        key={profile.id}
+                                        key={taxAccount.id}
                                         onClick={async () => {
-                                          updateBuyer(buyer.id, "profile_id", profile.id);
-                                          updateBuyer(buyer.id, "exchange_id", null); // Reset exchange when profile changes
-                                          const newSearch = { ...buyerProfileSearch };
-                                          newSearch[buyer.id] = `${profile.first_name} ${profile.last_name}`;
-                                          setBuyerProfileSearch(newSearch);
+                                          updateBuyer(buyer.id, "tax_account_id", taxAccount.id);
+                                          updateBuyer(buyer.id, "exchange_ids", []); // Reset exchanges when tax account changes
+                                          const newSearch = { ...buyerTaxAccountSearch };
+                                          newSearch[buyer.id] = taxAccount.name;
+                                          setBuyerTaxAccountSearch(newSearch);
                                           const newShow = { ...showBuyerDropdown };
                                           newShow[buyer.id] = false;
                                           setShowBuyerDropdown(newShow);
                                           
-                                          // Load exchanges for this buyer's profile
-                                          await loadBuyerExchanges(buyer.id, profile.id);
+                                          // Load exchanges for this buyer's tax account
+                                          await loadBuyerExchanges(buyer.id, taxAccount.id);
                                         }}
                                         className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                                       >
-                                        <p className="text-sm font-medium text-gray-900">
-                                          {profile.first_name} {profile.last_name}
-                                        </p>
-                                        {profile.email && (
-                                          <p className="text-xs text-gray-500">{profile.email}</p>
-                                        )}
+                                        <p className="text-sm font-medium text-gray-900">{taxAccount.name}</p>
                                       </div>
                                     ))}
                                   </div>
                                 )}
+                              </div>
 
-                                {/* Exchange Selection */}
-                                {buyer.profile_id && buyerExchanges[buyer.id] && buyerExchanges[buyer.id].length > 0 && (
-                                  <div className="mb-3 relative dropdown-container">
+                              {/* Exchange Selection - Multiple Choice */}
+                              {buyerExchanges[buyer.id] ? (
+                                  <div className="mt-4 mb-3 bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                      Exchange *
+                                      🎯 Exchanges * (select at least one)
                                     </label>
-                                    <input
-                                      type="text"
-                                      value={
-                                        buyer.exchange_id
-                                          ? buyerExchanges[buyer.id]?.find((e) => e.id === buyer.exchange_id)
-                                              ?.exchange_number || ""
-                                          : ""
-                                      }
-                                      onFocus={() => {
-                                        const newShow = { ...showExchangeDropdown };
-                                        newShow[buyer.id] = true;
-                                        setShowExchangeDropdown(newShow);
-                                      }}
-                                      placeholder="Select exchange..."
-                                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                      readOnly
-                                      required
-                                    />
-                                    {showExchangeDropdown[buyer.id] && buyerExchanges[buyer.id].length > 0 && (
-                                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                                        {buyerExchanges[buyer.id].map((exchange) => (
-                                          <div
-                                            key={exchange.id}
-                                            onClick={() => {
-                                              updateBuyer(buyer.id, "exchange_id", exchange.id);
-                                              const newShow = { ...showExchangeDropdown };
-                                              newShow[buyer.id] = false;
-                                              setShowExchangeDropdown(newShow);
-                                            }}
-                                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                                          >
-                                            <p className="text-sm font-medium text-gray-900">
-                                              {exchange.exchange_number}
+                                    {buyerExchanges[buyer.id].length === 0 ? (
+                                      <div className="border border-yellow-300 bg-yellow-50 rounded-md p-3">
+                                        <p className="text-sm text-yellow-800 font-medium">
+                                          ⚠️ This profile has no exchanges. Create an exchange for this profile.
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div className="border border-gray-300 rounded-md p-3 space-y-2 max-h-60 overflow-y-auto bg-white">
+                                          {buyerExchanges[buyer.id].map((exchange) => (
+                                            <label
+                                              key={exchange.id}
+                                              className="flex items-center space-x-3 p-2 hover:bg-blue-50 rounded cursor-pointer transition-colors"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={buyer.exchange_ids?.includes(exchange.id) || false}
+                                                onChange={() => toggleBuyerExchange(buyer.id, exchange.id)}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                              />
+                                              <span className="text-sm font-medium text-gray-900">
+                                                {exchange.exchange_number}
+                                              </span>
+                                            </label>
+                                          ))}
+                                        </div>
+                                        {buyer.exchange_ids && buyer.exchange_ids.length > 0 ? (
+                                          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                                            <p className="text-sm font-medium text-green-800">
+                                              ✓ Selected: {buyer.exchange_ids.length} exchange(s)
                                             </p>
                                           </div>
-                                        ))}
-                                      </div>
+                                        ) : (
+                                          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                                            <p className="text-sm font-medium text-red-800">
+                                              ⚠ Select at least one exchange
+                                            </p>
+                                          </div>
+                                        )}
+                                      </>
                                     )}
                                   </div>
-                                )}
-                              </div>
+                              ) : null}
+                              </>
                             ) : (
                               <div className="mb-3">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1587,12 +1689,42 @@ export default function TransactionsPage() {
                     {/* Property Selection (only for Property type, after Buyers) */}
                     {saleType === "Property" && (
                       <div className="border-t pt-6">
-                        <div className="mb-4">
-                          <h4 className="text-lg font-semibold text-gray-900">Property</h4>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Select a property that all sellers own (from their vesting names)
-                          </p>
+                        <div className="mb-4 flex justify-between items-center">
+                          <div>
+                            <h4 className="text-lg font-semibold text-gray-900">Property</h4>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Select existing property or create new one
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            onClick={() => setShowCreateProperty(!showCreateProperty)}
+                            variant="outline"
+                            size="small"
+                          >
+                            {showCreateProperty ? "Cancel" : "+ Create New Property"}
+                          </Button>
                         </div>
+
+                        {/* Create New Property Form */}
+                        {showCreateProperty ? (
+                          <div className="mb-4 p-4 bg-green-50 border border-green-300 rounded-lg">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              New Property Address *
+                            </label>
+                            <input
+                              type="text"
+                              value={newPropertyAddress}
+                              onChange={(e) => setNewPropertyAddress(e.target.value)}
+                              placeholder="Enter property address"
+                              required
+                              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                            <p className="mt-2 text-sm text-gray-600">
+                              Sellers will be set as current owners of this property
+                            </p>
+                          </div>
+                        ) : (
                         <div className="relative dropdown-container">
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Property *
@@ -1646,6 +1778,7 @@ export default function TransactionsPage() {
                             </div>
                           )}
                         </div>
+                        )}
                       </div>
                     )}
                   </div>
