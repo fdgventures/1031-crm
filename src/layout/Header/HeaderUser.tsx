@@ -11,11 +11,21 @@ interface User {
 }
 
 // Функция для добавления таймаута к промисам
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  fallbackValue?: T
+): Promise<T> {
   return Promise.race([
     promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error("Request timeout")), timeoutMs)
+    new Promise<T>((resolve, reject) =>
+      setTimeout(() => {
+        if (fallbackValue !== undefined) {
+          resolve(fallbackValue);
+        } else {
+          reject(new Error("Request timeout"));
+        }
+      }, timeoutMs)
     ),
   ]);
 }
@@ -48,35 +58,49 @@ export default function HeaderUser() {
         setUser(user);
 
         if (user) {
-          const { data: userProfile } = await withTimeout(
-            supabase
-              .from("user_profiles")
-              .select("role_type")
-              .eq("id", user.id)
-              .single(),
-            5000
-          );
+          // Запросы профиля делаем с обработкой ошибок
+          try {
+            const { data: userProfile } = await withTimeout(
+              supabase
+                .from("user_profiles")
+                .select("role_type")
+                .eq("id", user.id)
+                .single(),
+              5000
+            );
 
-          const adminRoles = [
-            "workspace_owner",
-            "platform_super_admin",
-            "admin",
-          ];
-          setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
+            const adminRoles = [
+              "workspace_owner",
+              "platform_super_admin",
+              "admin",
+            ];
+            setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
+          } catch (err) {
+            // Тихо игнорируем ошибки проверки роли
+            console.warn("Unable to fetch user role, defaulting to non-admin");
+            setIsAdmin(false);
+          }
 
-          const { data: profileData } = await withTimeout(
-            supabase
-              .from("profile")
-              .select("id, avatar_url")
-              .eq("user_id", user.id)
-              .maybeSingle(),
-            5000
-          );
+          try {
+            const { data: profileData } = await withTimeout(
+              supabase
+                .from("profile")
+                .select("id, avatar_url")
+                .eq("user_id", user.id)
+                .maybeSingle(),
+              5000
+            );
 
-          if (profileData) {
-            setProfileId(profileData.id);
-            setAvatarUrl(profileData.avatar_url || null);
-          } else {
+            if (profileData) {
+              setProfileId(profileData.id);
+              setAvatarUrl(profileData.avatar_url || null);
+            } else {
+              setProfileId(null);
+              setAvatarUrl(null);
+            }
+          } catch (err) {
+            // Тихо игнорируем ошибки профиля
+            console.warn("Unable to fetch profile data");
             setProfileId(null);
             setAvatarUrl(null);
           }
@@ -86,7 +110,12 @@ export default function HeaderUser() {
           setAvatarUrl(null);
         }
       } catch (err) {
-        console.error("Supabase auth error:", err);
+        // Только логируем, если это не таймаут
+        if (err instanceof Error && err.message !== "Request timeout") {
+          console.error("Supabase auth error:", err);
+        } else {
+          console.warn("Auth check timed out, app will work in offline mode");
+        }
         // При ошибке все равно позволяем использовать приложение
         setUser(null);
         setIsAdmin(false);
@@ -97,10 +126,7 @@ export default function HeaderUser() {
       }
     };
 
-    checkUser().catch((err) => {
-      console.error("Supabase auth error:", err);
-      setIsLoading(false);
-    });
+    checkUser();
 
     const {
       data: { subscription },
@@ -109,35 +135,46 @@ export default function HeaderUser() {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          const { data: userProfile } = await withTimeout(
-            supabase
-              .from("user_profiles")
-              .select("role_type")
-              .eq("id", session.user.id)
-              .single(),
-            5000
-          );
+          try {
+            const { data: userProfile } = await withTimeout(
+              supabase
+                .from("user_profiles")
+                .select("role_type")
+                .eq("id", session.user.id)
+                .single(),
+              5000
+            );
 
-          const adminRoles = [
-            "workspace_owner",
-            "platform_super_admin",
-            "admin",
-          ];
-          setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
+            const adminRoles = [
+              "workspace_owner",
+              "platform_super_admin",
+              "admin",
+            ];
+            setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
+          } catch {
+            console.warn("Unable to fetch user role on auth change");
+            setIsAdmin(false);
+          }
 
-          const { data: profileData } = await withTimeout(
-            supabase
-              .from("profile")
-              .select("id, avatar_url")
-              .eq("user_id", session.user.id)
-              .maybeSingle(),
-            5000
-          );
+          try {
+            const { data: profileData } = await withTimeout(
+              supabase
+                .from("profile")
+                .select("id, avatar_url")
+                .eq("user_id", session.user.id)
+                .maybeSingle(),
+              5000
+            );
 
-          if (profileData) {
-            setProfileId(profileData.id);
-            setAvatarUrl(profileData.avatar_url || null);
-          } else {
+            if (profileData) {
+              setProfileId(profileData.id);
+              setAvatarUrl(profileData.avatar_url || null);
+            } else {
+              setProfileId(null);
+              setAvatarUrl(null);
+            }
+          } catch {
+            console.warn("Unable to fetch profile on auth change");
             setProfileId(null);
             setAvatarUrl(null);
           }
@@ -151,7 +188,9 @@ export default function HeaderUser() {
           router.refresh();
         }
       } catch (err) {
-        console.error("Supabase auth state error:", err);
+        if (err instanceof Error && err.message !== "Request timeout") {
+          console.error("Supabase auth state error:", err);
+        }
       }
     });
 
@@ -168,8 +207,10 @@ export default function HeaderUser() {
       // Добавляем таймаут для signOut, если не сработает за 3 секунды, все равно выходим
       await withTimeout(supabase.auth.signOut(), 3000);
     } catch (err) {
-      console.error("Error signing out:", err);
-      // Даже если произошла ошибка, принудительно выходим локально
+      // Тихо игнорируем ошибки выхода - локальный выход все равно произойдет
+      if (err instanceof Error && err.message !== "Request timeout") {
+        console.warn("Sign out failed on server, proceeding with local sign out");
+      }
     } finally {
       // Очищаем состояние и перенаправляем
       setUser(null);
