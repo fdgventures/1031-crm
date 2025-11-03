@@ -153,6 +153,37 @@ export default function ProfileViewPage({
 
   const loadProperties = useCallback(async () => {
     try {
+      // Сначала получаем все tax accounts для этого профиля
+      const { data: profileTaxAccounts, error: taxAccountsError } = await supabase
+        .from("tax_accounts")
+        .select("id")
+        .eq("profile_id", id);
+
+      if (taxAccountsError) throw taxAccountsError;
+
+      if (!profileTaxAccounts || profileTaxAccounts.length === 0) {
+        setProperties([]);
+        return;
+      }
+
+      const taxAccountIds = profileTaxAccounts.map((ta) => ta.id);
+
+      // Получаем business names для этих tax accounts
+      const { data: businessNames, error: businessNamesError } = await supabase
+        .from("business_names")
+        .select("id")
+        .in("tax_account_id", taxAccountIds);
+
+      if (businessNamesError) throw businessNamesError;
+
+      if (!businessNames || businessNames.length === 0) {
+        setProperties([]);
+        return;
+      }
+
+      const businessNameIds = businessNames.map((bn) => bn.id);
+
+      // Теперь получаем только properties, связанные с business names этого профиля
       const { data, error } = await supabase
         .from("properties")
         .select(
@@ -168,7 +199,7 @@ export default function ProfileViewPage({
           )
         `
         )
-        .not("business_name_id", "is", null)
+        .in("business_name_id", businessNameIds)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -196,7 +227,7 @@ export default function ProfileViewPage({
     } catch (err) {
       console.error("Failed to load properties:", err);
     }
-  }, []);
+  }, [id, supabase]);
 
   useEffect(() => {
     let isMounted = true;

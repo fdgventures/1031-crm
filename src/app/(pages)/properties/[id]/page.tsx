@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface Property {
   id: number;
@@ -90,6 +91,12 @@ export default function PropertyViewPage({
   const [taxAccounts, setTaxAccounts] = useState<TaxAccount[]>([]);
   const [filteredTaxAccounts, setFilteredTaxAccounts] = useState<TaxAccount[]>([]);
   const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
+
+  // Edit and Delete property
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editAddress, setEditAddress] = useState("");
+  const [editingProperty, setEditingProperty] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const loadProperty = useCallback(async () => {
     const { data, error } = await supabase
@@ -383,6 +390,100 @@ export default function PropertyViewPage({
     setVestingNames([]);
   };
 
+  const handleEditProperty = () => {
+    if (property) {
+      setEditAddress(property.address);
+      setShowEditModal(true);
+    }
+  };
+
+  const handleUpdateProperty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setEditingProperty(true);
+
+    try {
+      if (!editAddress) {
+        throw new Error("Property address is required");
+      }
+
+      const { error: updateError } = await supabase
+        .from("properties")
+        .update({ address: editAddress })
+        .eq("id", id);
+
+      if (updateError) throw updateError;
+
+      // Create audit log
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { error: auditError } = await supabase.from('audit_logs').insert({
+        entity_type: 'property',
+        entity_id: parseInt(id),
+        action_type: 'update',
+        field_name: 'address',
+        old_value: property?.address || null,
+        new_value: editAddress,
+        changed_by: user?.id || null,
+      });
+
+      if (!auditError) {
+        setLogRefreshTrigger(Date.now());
+      }
+
+      setSuccess("Property updated successfully!");
+      setShowEditModal(false);
+      await loadProperty();
+
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error("Failed to update property:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to update property"
+      );
+    } finally {
+      setEditingProperty(false);
+    }
+  };
+
+  const handleDeleteProperty = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to permanently delete this property? This action cannot be undone and will delete all ownership records."
+      )
+    )
+      return;
+
+    try {
+      // Delete associated ownership records first
+      const { error: ownershipError } = await supabase
+        .from("property_ownership")
+        .delete()
+        .eq("property_id", id);
+
+      if (ownershipError) {
+        console.error("Failed to delete ownership records:", ownershipError);
+      }
+
+      // Delete the property
+      const { error: deleteError } = await supabase
+        .from("properties")
+        .delete()
+        .eq("id", id);
+
+      if (deleteError) throw deleteError;
+
+      // Redirect to properties list
+      router.push("/properties");
+    } catch (err) {
+      console.error("Failed to delete property:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to delete property"
+      );
+    }
+  };
+
   const getOwnershipsByType = (type: "pending" | "current" | "prior") => {
     return ownerships.filter((o) => o.ownership_type === type);
   };
@@ -429,16 +530,46 @@ export default function PropertyViewPage({
           </Button>
         </div>
 
+        {success && (
+          <div className="mb-4 bg-green-50 border border-green-200 rounded-md p-4">
+            <p className="text-sm text-green-600">{success}</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        )}
+
         <div className="bg-white shadow rounded-lg mb-6">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-12 rounded-t-lg">
-            <div className="flex items-center">
-              <div className="h-24 w-24 rounded-full bg-white flex items-center justify-center mr-6">
-                <span className="text-3xl font-bold text-blue-600">🏠</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="h-24 w-24 rounded-full bg-white flex items-center justify-center mr-6">
+                  <span className="text-3xl font-bold text-blue-600">🏠</span>
+                </div>
+                <div className="text-white">
+                  <h1 className="text-4xl font-bold">Property #{property.id}</h1>
+                  <p className="text-blue-100 mt-2">{property.address}</p>
+                </div>
               </div>
-              <div className="text-white">
-                <h1 className="text-4xl font-bold">Property #{property.id}</h1>
-                <p className="text-blue-100 mt-2">{property.address}</p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleEditProperty}
+                  variant="outline"
+                  className="bg-white text-blue-600 hover:bg-gray-100"
+                >
+                  ✏️ Edit
+                </Button>
+                <Button
+                  onClick={handleDeleteProperty}
+                  variant="destructive"
+                  className="bg-red-600 text-white hover:bg-red-700"
+                >
+                  🗑️ Delete
+                </Button>
               </div>
             </div>
           </div>
@@ -811,6 +942,68 @@ export default function PropertyViewPage({
                       onClick={() => {
                         setShowAddCurrentModal(false);
                         resetCurrentForm();
+                        setError(null);
+                      }}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Property Modal */}
+        {showEditModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Edit Property Address
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditAddress("");
+                      setError(null);
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <form onSubmit={handleUpdateProperty} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Property Address *
+                    </label>
+                    <AddressAutocomplete
+                      value={editAddress}
+                      onChange={setEditAddress}
+                      placeholder="Start typing address..."
+                      required
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      type="submit"
+                      disabled={editingProperty}
+                      variant="primary"
+                      className="flex-1"
+                    >
+                      {editingProperty ? "Saving..." : "Save Changes"}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setShowEditModal(false);
+                        setEditAddress("");
                         setError(null);
                       }}
                       variant="outline"

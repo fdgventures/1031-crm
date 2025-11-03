@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface TaxAccount {
   id: number;
@@ -100,6 +101,12 @@ export default function TaxAccountViewPage({
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [newPropertyAddress, setNewPropertyAddress] = useState("");
   const [propertyActionLoading, setPropertyActionLoading] = useState(false);
+  
+  // Edit Property modal
+  const [showEditPropertyModal, setShowEditPropertyModal] = useState(false);
+  const [editingPropertyId, setEditingPropertyId] = useState<number | null>(null);
+  const [editPropertyAddress, setEditPropertyAddress] = useState("");
+  const [editingProperty, setEditingProperty] = useState(false);
 
   const loadBusinessNames = useCallback(async () => {
     if (Number.isNaN(numericId)) {
@@ -107,29 +114,46 @@ export default function TaxAccountViewPage({
     }
 
     try {
-      const { data, error } = await supabase
+      // Get all business names for this tax account
+      const { data: businessNamesData, error: businessNamesError } = await supabase
         .from("business_names")
         .select("*")
         .eq("tax_account_id", numericId)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (businessNamesError) throw businessNamesError;
 
-      // Load properties for each business name
-      const businessNamesWithProperties = await Promise.all(
-        (data || []).map(async (bn) => {
-          const { data: properties } = await supabase
-            .from("properties")
-            .select("*")
-            .eq("business_name_id", bn.id)
-            .order("created_at", { ascending: false });
+      if (!businessNamesData || businessNamesData.length === 0) {
+        setBusinessNames([]);
+        return;
+      }
 
-          return {
-            ...bn,
-            properties: properties || [],
-          };
-        })
-      );
+      // Get all properties for these business names in ONE query
+      const businessNameIds = businessNamesData.map((bn) => bn.id);
+      const { data: propertiesData, error: propertiesError } = await supabase
+        .from("properties")
+        .select("*")
+        .in("business_name_id", businessNameIds)
+        .order("created_at", { ascending: false });
+
+      if (propertiesError) throw propertiesError;
+
+      // Group properties by business_name_id
+      const propertiesByBusinessName: { [key: number]: Property[] } = {};
+      (propertiesData || []).forEach((property) => {
+        if (property.business_name_id) {
+          if (!propertiesByBusinessName[property.business_name_id]) {
+            propertiesByBusinessName[property.business_name_id] = [];
+          }
+          propertiesByBusinessName[property.business_name_id].push(property);
+        }
+      });
+
+      // Attach properties to business names
+      const businessNamesWithProperties = businessNamesData.map((bn) => ({
+        ...bn,
+        properties: propertiesByBusinessName[bn.id] || [],
+      }));
 
       setBusinessNames(businessNamesWithProperties);
     } catch (err) {
@@ -158,31 +182,36 @@ export default function TaxAccountViewPage({
     }
 
     try {
-      // Load Tax Account
+      // Load Tax Account with Profile in ONE query using JOIN
       const { data: taxAccountData, error: taxAccountError } = await supabase
         .from("tax_accounts")
-        .select("*")
+        .select(`
+          *,
+          profile:profile_id (
+            id,
+            first_name,
+            last_name,
+            email
+          )
+        `)
         .eq("id", numericId)
         .single();
 
       if (taxAccountError) throw taxAccountError;
       setTaxAccount(taxAccountData);
 
-      // Load Profile
-      if (taxAccountData.profile_id) {
-        const { data: profileData, error: profileError } = await supabase
-          .from("profile")
-          .select("*")
-          .eq("id", taxAccountData.profile_id)
-          .single();
-
-        if (profileError) throw profileError;
-        setProfile(profileData);
+      // Set profile if exists
+      if (taxAccountData.profile) {
+        setProfile(Array.isArray(taxAccountData.profile) 
+          ? taxAccountData.profile[0] 
+          : taxAccountData.profile);
       }
 
-      // Load Business Names
-      await loadBusinessNames();
-      await loadAllProperties();
+      // Load Business Names and Properties in parallel
+      await Promise.all([
+        loadBusinessNames(),
+        loadAllProperties()
+      ]);
     } catch (err) {
       console.error("Failed to load tax account:", err);
       setError(
@@ -194,23 +223,35 @@ export default function TaxAccountViewPage({
   }, [loadAllProperties, loadBusinessNames, numericId, supabase]);
 
   const checkAdminAndLoadTaxAccount = useCallback(async () => {
+    const startTime = performance.now();
+    console.log('⏱️ Starting Tax Account page load...');
+    
     try {
+      const authStart = performance.now();
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      console.log(`✓ Auth check: ${(performance.now() - authStart).toFixed(0)}ms`);
 
       if (user) {
+        const profileStart = performance.now();
         const { data: userProfile } = await supabase
           .from("user_profiles")
           .select("role_type")
           .eq("id", user.id)
           .single();
+        console.log(`✓ User profile: ${(performance.now() - profileStart).toFixed(0)}ms`);
 
         const adminRoles = ["workspace_owner", "platform_super_admin", "admin"];
         setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
       }
 
+      const dataStart = performance.now();
       await loadTaxAccount();
+      console.log(`✓ Tax Account data: ${(performance.now() - dataStart).toFixed(0)}ms`);
+      
+      const totalTime = (performance.now() - startTime).toFixed(0);
+      console.log(`🏁 Total load time: ${totalTime}ms`);
     } catch (err) {
       console.error("Error checking admin:", err);
       setLoading(false);
@@ -259,18 +300,6 @@ export default function TaxAccountViewPage({
     } finally {
       setCreating(false);
     }
-  };
-
-  const openAddPropertyModal = (businessNameId: number) => {
-    setSelectedBusinessNameId(businessNameId);
-    setSelectedPropertyId("");
-    setShowAddPropertyModal(true);
-  };
-
-  const openCreatePropertyModal = (businessNameId: number) => {
-    setSelectedBusinessNameId(businessNameId);
-    setNewPropertyAddress("");
-    setShowCreatePropertyModal(true);
   };
 
   const handleAddExistingProperty = async (e: React.FormEvent) => {
@@ -339,6 +368,8 @@ export default function TaxAccountViewPage({
 
       setSuccess("Property added successfully!");
       setShowAddPropertyModal(false);
+      setSelectedPropertyId("");
+      setSelectedBusinessNameId(null);
       await loadBusinessNames();
       await loadAllProperties();
 
@@ -358,8 +389,12 @@ export default function TaxAccountViewPage({
     setPropertyActionLoading(true);
 
     try {
-      if (!newPropertyAddress || !selectedBusinessNameId) {
+      if (!newPropertyAddress) {
         throw new Error("Property address is required");
+      }
+
+      if (!selectedBusinessNameId) {
+        throw new Error("Please select a Business Name");
       }
 
       // Get business name details to find tax account
@@ -405,6 +440,8 @@ export default function TaxAccountViewPage({
 
       setSuccess("Property created successfully!");
       setShowCreatePropertyModal(false);
+      setNewPropertyAddress("");
+      setSelectedBusinessNameId(null);
       await loadBusinessNames();
 
       setTimeout(() => setSuccess(null), 3000);
@@ -479,6 +516,101 @@ export default function TaxAccountViewPage({
       console.error("Failed to remove property:", err);
       setError(
         err instanceof Error ? err.message : "Failed to remove property"
+      );
+    }
+  };
+
+  const openEditPropertyModal = async (propertyId: number) => {
+    try {
+      const { data: property, error } = await supabase
+        .from("properties")
+        .select("address")
+        .eq("id", propertyId)
+        .single();
+
+      if (error) throw error;
+
+      setEditingPropertyId(propertyId);
+      setEditPropertyAddress(property.address);
+      setShowEditPropertyModal(true);
+    } catch (err) {
+      console.error("Failed to load property:", err);
+      setError(err instanceof Error ? err.message : "Failed to load property");
+    }
+  };
+
+  const handleUpdateProperty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setEditingProperty(true);
+
+    try {
+      if (!editPropertyAddress || !editingPropertyId) {
+        throw new Error("Property address is required");
+      }
+
+      const { error: updateError } = await supabase
+        .from("properties")
+        .update({ address: editPropertyAddress })
+        .eq("id", editingPropertyId);
+
+      if (updateError) throw updateError;
+
+      setSuccess("Property updated successfully!");
+      setShowEditPropertyModal(false);
+      setEditingPropertyId(null);
+      setEditPropertyAddress("");
+      await loadBusinessNames();
+
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error("Failed to update property:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to update property"
+      );
+    } finally {
+      setEditingProperty(false);
+    }
+  };
+
+  const handleDeleteProperty = async (propertyId: number) => {
+    if (
+      !confirm(
+        "Are you sure you want to permanently delete this property? This action cannot be undone."
+      )
+    )
+      return;
+
+    try {
+      // Delete associated ownership records first
+      const { error: ownershipError } = await supabase
+        .from("property_ownership")
+        .delete()
+        .eq("property_id", propertyId);
+
+      if (ownershipError) {
+        console.error("Failed to delete ownership records:", ownershipError);
+        // Continue anyway
+      }
+
+      // Delete the property
+      const { error: deleteError } = await supabase
+        .from("properties")
+        .delete()
+        .eq("id", propertyId);
+
+      if (deleteError) throw deleteError;
+
+      setSuccess("Property deleted successfully!");
+      await loadBusinessNames();
+      await loadAllProperties();
+
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error("Failed to delete property:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to delete property"
       );
     }
   };
@@ -738,21 +870,42 @@ export default function TaxAccountViewPage({
           </div>
         </div>
 
-        <div className="mt-6">
-          <DocumentRepository entityType="tax_account" entityId={id} />
-        </div>
-
         {/* Business Names Section */}
-        <div className="bg-white shadow rounded-lg p-6">
+        <div className="bg-white shadow rounded-lg p-6 mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Business Names</h2>
             {isAdmin && (
-              <Button
-                onClick={() => setShowCreateModal(true)}
-                variant="primary"
-              >
-                + Add Business Name
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    setSelectedBusinessNameId(null);
+                    setSelectedPropertyId("");
+                    setShowAddPropertyModal(true);
+                  }}
+                  variant="ghost"
+                  size="small"
+                >
+                  + Add Existing Property
+                </Button>
+                <Button
+                  onClick={() => {
+                    setSelectedBusinessNameId(null);
+                    setNewPropertyAddress("");
+                    setShowCreatePropertyModal(true);
+                  }}
+                  variant="outline"
+                  size="small"
+                >
+                  + Create Property
+                </Button>
+                <Button
+                  onClick={() => setShowCreateModal(true)}
+                  variant="primary"
+                  size="small"
+                >
+                  + Add Business Name
+                </Button>
+              </div>
             )}
           </div>
 
@@ -800,26 +953,6 @@ export default function TaxAccountViewPage({
                         {new Date(businessName.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    {isAdmin && (
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => openAddPropertyModal(businessName.id)}
-                          variant="outline"
-                          size="small"
-                        >
-                          + Add Existing Property
-                        </Button>
-                        <Button
-                          onClick={() =>
-                            openCreatePropertyModal(businessName.id)
-                          }
-                          variant="primary"
-                          size="small"
-                        >
-                          + Create New Property
-                        </Button>
-                      </div>
-                    )}
                   </div>
 
                   {/* Properties List */}
@@ -837,10 +970,13 @@ export default function TaxAccountViewPage({
                         {businessName.properties.map((property) => (
                           <div
                             key={property.id}
-                            className="flex justify-between items-center bg-gray-50 p-3 rounded"
+                            className="flex justify-between items-center bg-gray-50 p-3 rounded hover:bg-gray-100 transition-colors"
                           >
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
+                            <div
+                              onClick={() => router.push(`/properties/${property.id}`)}
+                              className="flex-1 cursor-pointer"
+                            >
+                              <p className="text-sm font-medium text-gray-900 hover:text-blue-600">
                                 {property.address}
                               </p>
                               <p className="text-xs text-gray-500">
@@ -850,16 +986,41 @@ export default function TaxAccountViewPage({
                                 ).toLocaleDateString()}
                               </p>
                             </div>
-                            {isAdmin && (
+                            <div className="flex items-center gap-2 ml-2">
                               <button
-                                onClick={() =>
-                                  handleRemoveProperty(property.id)
-                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditPropertyModal(property.id);
+                                }}
+                                className="text-blue-600 hover:text-blue-800 text-sm"
+                              >
+                                ✏️ Edit
+                              </button>
+                              {isAdmin && (
+                                <>
+                                  <span className="text-gray-300">|</span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveProperty(property.id);
+                                    }}
+                                    className="text-orange-600 hover:text-orange-800 text-sm"
+                                  >
+                                    📤 Unlink
+                                  </button>
+                                </>
+                              )}
+                              <span className="text-gray-300">|</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteProperty(property.id);
+                                }}
                                 className="text-red-600 hover:text-red-800 text-sm"
                               >
-                                Remove
+                                🗑️ Delete
                               </button>
-                            )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -869,6 +1030,11 @@ export default function TaxAccountViewPage({
               ))}
             </div>
           )}
+        </div>
+
+        {/* Document Repository Section */}
+        <div className="mt-6">
+          <DocumentRepository entityType="tax_account" entityId={id} />
         </div>
 
         {/* Create Business Name Modal */}
@@ -952,6 +1118,7 @@ export default function TaxAccountViewPage({
                     onClick={() => {
                       setShowAddPropertyModal(false);
                       setSelectedPropertyId("");
+                      setSelectedBusinessNameId(null);
                       setError(null);
                     }}
                     className="text-gray-400 hover:text-gray-600 text-2xl"
@@ -964,6 +1131,46 @@ export default function TaxAccountViewPage({
                   onSubmit={handleAddExistingProperty}
                   className="space-y-4"
                 >
+                  {/* Tax Account - Read Only */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tax Account
+                    </label>
+                    <div className="w-full px-4 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700">
+                      {taxAccount?.name || "—"}
+                    </div>
+                  </div>
+
+                  {/* Business Name Selection */}
+                  <div>
+                    <label
+                      htmlFor="businessNameSelectForAdd"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      Business Name (Owner/Vesting) *
+                    </label>
+                    <select
+                      id="businessNameSelectForAdd"
+                      value={selectedBusinessNameId || ""}
+                      onChange={(e) => setSelectedBusinessNameId(Number(e.target.value) || null)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">-- Select Business Name --</option>
+                      {businessNames.map((bn) => (
+                        <option key={bn.id} value={bn.id}>
+                          {bn.name}
+                        </option>
+                      ))}
+                    </select>
+                    {businessNames.length === 0 && (
+                      <p className="mt-1 text-xs text-yellow-600">
+                        ⚠️ Create a Business Name first to associate with this property
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Property Selection */}
                   <div>
                     <label
                       htmlFor="propertySelect"
@@ -997,7 +1204,7 @@ export default function TaxAccountViewPage({
                     <Button
                       type="submit"
                       disabled={
-                        propertyActionLoading || allProperties.length === 0
+                        propertyActionLoading || allProperties.length === 0 || businessNames.length === 0
                       }
                       variant="primary"
                       className="flex-1"
@@ -1009,6 +1216,7 @@ export default function TaxAccountViewPage({
                       onClick={() => {
                         setShowAddPropertyModal(false);
                         setSelectedPropertyId("");
+                        setSelectedBusinessNameId(null);
                         setError(null);
                       }}
                       variant="outline"
@@ -1036,6 +1244,7 @@ export default function TaxAccountViewPage({
                     onClick={() => {
                       setShowCreatePropertyModal(false);
                       setNewPropertyAddress("");
+                      setSelectedBusinessNameId(null);
                       setError(null);
                     }}
                     className="text-gray-400 hover:text-gray-600 text-2xl"
@@ -1045,6 +1254,46 @@ export default function TaxAccountViewPage({
                 </div>
 
                 <form onSubmit={handleCreateNewProperty} className="space-y-4">
+                  {/* Tax Account - Read Only */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tax Account
+                    </label>
+                    <div className="w-full px-4 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700">
+                      {taxAccount?.name || "—"}
+                    </div>
+                  </div>
+
+                  {/* Business Name Selection */}
+                  <div>
+                    <label
+                      htmlFor="businessNameSelect"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      Business Name (Owner/Vesting) *
+                    </label>
+                    <select
+                      id="businessNameSelect"
+                      value={selectedBusinessNameId || ""}
+                      onChange={(e) => setSelectedBusinessNameId(Number(e.target.value) || null)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">-- Select Business Name --</option>
+                      {businessNames.map((bn) => (
+                        <option key={bn.id} value={bn.id}>
+                          {bn.name}
+                        </option>
+                      ))}
+                    </select>
+                    {businessNames.length === 0 && (
+                      <p className="mt-1 text-xs text-yellow-600">
+                        ⚠️ Create a Business Name first to associate with this property
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Property Address */}
                   <div>
                     <label
                       htmlFor="newPropertyAddress"
@@ -1052,21 +1301,18 @@ export default function TaxAccountViewPage({
                     >
                       Property Address *
                     </label>
-                    <input
-                      type="text"
-                      id="newPropertyAddress"
+                    <AddressAutocomplete
                       value={newPropertyAddress}
-                      onChange={(e) => setNewPropertyAddress(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onChange={setNewPropertyAddress}
+                      placeholder="Start typing address..."
                       required
-                      placeholder="Enter property address"
                     />
                   </div>
 
                   <div className="flex gap-3 pt-4">
                     <Button
                       type="submit"
-                      disabled={propertyActionLoading}
+                      disabled={propertyActionLoading || businessNames.length === 0}
                       variant="primary"
                       className="flex-1"
                     >
@@ -1079,6 +1325,7 @@ export default function TaxAccountViewPage({
                       onClick={() => {
                         setShowCreatePropertyModal(false);
                         setNewPropertyAddress("");
+                        setSelectedBusinessNameId(null);
                         setError(null);
                       }}
                       variant="outline"
@@ -1211,6 +1458,73 @@ export default function TaxAccountViewPage({
                       type="button"
                       onClick={() => {
                         setShowEditBusinessNameModal(false);
+                        setError(null);
+                      }}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Property Modal */}
+        {showEditPropertyModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Edit Property
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowEditPropertyModal(false);
+                      setEditingPropertyId(null);
+                      setEditPropertyAddress("");
+                      setError(null);
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <form onSubmit={handleUpdateProperty} className="space-y-4">
+                  <div>
+                    <label
+                      htmlFor="editPropertyAddressInput"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      Property Address *
+                    </label>
+                    <AddressAutocomplete
+                      value={editPropertyAddress}
+                      onChange={setEditPropertyAddress}
+                      placeholder="Start typing address..."
+                      required
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      type="submit"
+                      disabled={editingProperty}
+                      variant="primary"
+                      className="flex-1"
+                    >
+                      {editingProperty ? "Saving..." : "Save Changes"}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setShowEditPropertyModal(false);
+                        setEditingPropertyId(null);
+                        setEditPropertyAddress("");
                         setError(null);
                       }}
                       variant="outline"

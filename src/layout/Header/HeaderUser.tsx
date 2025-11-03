@@ -51,56 +51,51 @@ export default function HeaderUser() {
 
     const checkUser = async () => {
       try {
-        // Добавляем таймаут 5 секунд для всех запросов
+        // Добавляем таймаут 5 секунд для запроса пользователя
         const {
           data: { user },
         } = await withTimeout(supabase.auth.getUser(), 5000);
         setUser(user);
 
         if (user) {
-          // Запросы профиля делаем с обработкой ошибок
-          try {
-            const { data: userProfile } = await withTimeout(
+          // Делаем оба запроса ПАРАЛЛЕЛЬНО для ускорения
+          const [userProfileResult, profileDataResult] = await Promise.allSettled([
+            withTimeout(
               supabase
                 .from("user_profiles")
                 .select("role_type")
                 .eq("id", user.id)
                 .single(),
-              5000
-            );
-
-            const adminRoles = [
-              "workspace_owner",
-              "platform_super_admin",
-              "admin",
-            ];
-            setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
-          } catch (err) {
-            // Тихо игнорируем ошибки проверки роли
-            console.warn("Unable to fetch user role, defaulting to non-admin");
-            setIsAdmin(false);
-          }
-
-          try {
-            const { data: profileData } = await withTimeout(
+              3000
+            ),
+            withTimeout(
               supabase
                 .from("profile")
                 .select("id, avatar_url")
                 .eq("user_id", user.id)
                 .maybeSingle(),
-              5000
-            );
+              3000
+            ),
+          ]);
 
-            if (profileData) {
-              setProfileId(profileData.id);
-              setAvatarUrl(profileData.avatar_url || null);
-            } else {
-              setProfileId(null);
-              setAvatarUrl(null);
-            }
-          } catch (err) {
-            // Тихо игнорируем ошибки профиля
-            console.warn("Unable to fetch profile data");
+          // Process user role
+          if (userProfileResult.status === "fulfilled") {
+            const adminRoles = [
+              "workspace_owner",
+              "platform_super_admin",
+              "admin",
+            ];
+            setIsAdmin(adminRoles.includes(userProfileResult.value.data?.role_type || ""));
+          } else {
+            console.warn("Unable to fetch user role, defaulting to non-admin");
+            setIsAdmin(false);
+          }
+
+          // Process profile data
+          if (profileDataResult.status === "fulfilled" && profileDataResult.value.data) {
+            setProfileId(profileDataResult.value.data.id);
+            setAvatarUrl(profileDataResult.value.data.avatar_url || null);
+          } else {
             setProfileId(null);
             setAvatarUrl(null);
           }
@@ -135,46 +130,43 @@ export default function HeaderUser() {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          try {
-            const { data: userProfile } = await withTimeout(
+          // Делаем оба запроса ПАРАЛЛЕЛЬНО
+          const [userProfileResult, profileDataResult] = await Promise.allSettled([
+            withTimeout(
               supabase
                 .from("user_profiles")
                 .select("role_type")
                 .eq("id", session.user.id)
                 .single(),
-              5000
-            );
-
-            const adminRoles = [
-              "workspace_owner",
-              "platform_super_admin",
-              "admin",
-            ];
-            setIsAdmin(adminRoles.includes(userProfile?.role_type || ""));
-          } catch {
-            console.warn("Unable to fetch user role on auth change");
-            setIsAdmin(false);
-          }
-
-          try {
-            const { data: profileData } = await withTimeout(
+              3000
+            ),
+            withTimeout(
               supabase
                 .from("profile")
                 .select("id, avatar_url")
                 .eq("user_id", session.user.id)
                 .maybeSingle(),
-              5000
-            );
+              3000
+            ),
+          ]);
 
-            if (profileData) {
-              setProfileId(profileData.id);
-              setAvatarUrl(profileData.avatar_url || null);
-            } else {
-              setProfileId(null);
-              setAvatarUrl(null);
-            }
-          } catch {
-            console.warn("Unable to fetch profile on auth change");
+          // Process user role
+          if (userProfileResult.status === "fulfilled") {
+            const adminRoles = [
+              "workspace_owner",
+              "platform_super_admin",
+              "admin",
+            ];
+            setIsAdmin(adminRoles.includes(userProfileResult.value.data?.role_type || ""));
+          } else {
+            setIsAdmin(false);
+          }
+
+          // Process profile data
+          if (profileDataResult.status === "fulfilled" && profileDataResult.value.data) {
+            setProfileId(profileDataResult.value.data.id);
+            setAvatarUrl(profileDataResult.value.data.avatar_url || null);
+          } else {
             setProfileId(null);
             setAvatarUrl(null);
           }

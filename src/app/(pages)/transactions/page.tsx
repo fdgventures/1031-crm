@@ -486,7 +486,7 @@ export default function TransactionsPage() {
       id: `seller-${Date.now()}`,
       tax_account_id: null,
       vesting_name: "",
-      contract_percent: "",
+      contract_percent: sellers.length === 0 ? "100" : "", // Auto 100% for first seller
       non_exchange_name: "",
       is_non_exchange: false,
     };
@@ -545,7 +545,7 @@ export default function TransactionsPage() {
       id: `seller-ne-${Date.now()}`,
       tax_account_id: null,
       vesting_name: "",
-      contract_percent: "",
+      contract_percent: sellers.length === 0 ? "100" : "", // Auto 100% for first seller
       non_exchange_name: "",
       is_non_exchange: true, // Mark as non-exchange
     };
@@ -557,7 +557,7 @@ export default function TransactionsPage() {
       id: `buyer-${Date.now()}`,
       tax_account_id: null,
       exchange_ids: [],
-      contract_percent: "",
+      contract_percent: buyers.length === 0 ? "100" : "", // Auto 100% for first buyer
       non_exchange_name: "",
       is_non_exchange: false,
     };
@@ -565,13 +565,13 @@ export default function TransactionsPage() {
   };
 
   const removeBuyer = (id: string) => {
-    setBuyers(buyers.filter((b) => b.id !== id));
+    setBuyers((prevBuyers) => prevBuyers.filter((b) => b.id !== id));
   };
 
   const updateBuyer = (id: string, field: keyof TransactionBuyer, value: any) => {
     console.log('🔧 Updating buyer:', id, 'field:', field, 'value:', value);
-    setBuyers(
-      buyers.map((b) => {
+    setBuyers((prevBuyers) =>
+      prevBuyers.map((b) => {
         if (b.id === id) {
           const updated = { ...b, [field]: value };
           console.log('✏️ Updated buyer object:', updated);
@@ -583,17 +583,19 @@ export default function TransactionsPage() {
   };
 
   const toggleBuyerExchange = (buyerId: string, exchangeId: number) => {
-    setBuyers(
-      buyers.map((b) => {
+    setBuyers((prevBuyers) =>
+      prevBuyers.map((b) => {
         if (b.id === buyerId) {
           const currentExchanges = b.exchange_ids || [];
           const isSelected = currentExchanges.includes(exchangeId);
-          return {
+          const updatedBuyer = {
             ...b,
             exchange_ids: isSelected
               ? currentExchanges.filter(id => id !== exchangeId)
               : [...currentExchanges, exchangeId]
           };
+          console.log('🔄 Toggle exchange:', exchangeId, 'for buyer:', buyerId, 'tax_account_id preserved:', updatedBuyer.tax_account_id);
+          return updatedBuyer;
         }
         return b;
       })
@@ -605,7 +607,7 @@ export default function TransactionsPage() {
       id: `buyer-ne-${Date.now()}`,
       tax_account_id: null,
       exchange_ids: [],
-      contract_percent: "",
+      contract_percent: buyers.length === 0 ? "100" : "", // Auto 100% for first buyer
       non_exchange_name: "",
       is_non_exchange: true, // Mark as non-exchange
     };
@@ -1378,12 +1380,20 @@ export default function TransactionsPage() {
                                   </label>
                                   <input
                                     type="text"
-                                    value={sellerTaxAccountSearch[seller.id] || ""}
+                                    value={sellerTaxAccountSearch[seller.id] || (selectedTaxAccount ? selectedTaxAccount.name : "")}
                                     onChange={(e) => {
+                                      const newValue = e.target.value;
+                                      const currentName = selectedTaxAccount ? selectedTaxAccount.name : "";
+                                      
+                                      // Only reset tax_account_id if the text actually changed from the selected value
+                                      if (newValue !== currentName) {
+                                        updateSeller(seller.id, "tax_account_id", null);
+                                      }
+                                      
                                       const newSearch = { ...sellerTaxAccountSearch };
-                                      newSearch[seller.id] = e.target.value;
+                                      newSearch[seller.id] = newValue;
                                       setSellerTaxAccountSearch(newSearch);
-                                      updateSeller(seller.id, "tax_account_id", null);
+                                      
                                       const newShow = { ...showSellerDropdown };
                                       newShow[seller.id] = true;
                                       setShowSellerDropdown(newShow);
@@ -1548,11 +1558,19 @@ export default function TransactionsPage() {
                                   type="text"
                                   value={buyerTaxAccountSearch[buyer.id] || (selectedTaxAccount ? selectedTaxAccount.name : "")}
                                   onChange={(e) => {
+                                    const newValue = e.target.value;
+                                    const currentName = selectedTaxAccount ? selectedTaxAccount.name : "";
+                                    
+                                    // Only reset tax_account_id if the text actually changed from the selected value
+                                    if (newValue !== currentName) {
+                                      updateBuyer(buyer.id, "tax_account_id", null);
+                                      updateBuyer(buyer.id, "exchange_ids", []);
+                                    }
+                                    
                                     const newSearch = { ...buyerTaxAccountSearch };
-                                    newSearch[buyer.id] = e.target.value;
+                                    newSearch[buyer.id] = newValue;
                                     setBuyerTaxAccountSearch(newSearch);
-                                    updateBuyer(buyer.id, "tax_account_id", null);
-                                    updateBuyer(buyer.id, "exchange_ids", []);
+                                    
                                     const newShow = { ...showBuyerDropdown };
                                     newShow[buyer.id] = true;
                                     setShowBuyerDropdown(newShow);
@@ -1578,8 +1596,26 @@ export default function TransactionsPage() {
                                       <div
                                         key={taxAccount.id}
                                         onClick={async () => {
-                                          updateBuyer(buyer.id, "tax_account_id", taxAccount.id);
-                                          updateBuyer(buyer.id, "exchange_ids", []); // Reset exchanges when tax account changes
+                                          console.log('✅ Selecting tax account for buyer:', buyer.id, 'Tax Account ID:', taxAccount.id, 'Name:', taxAccount.name);
+                                          
+                                          // Update both fields at once to avoid race condition
+                                          setBuyers((prevBuyers) => {
+                                            const updated = prevBuyers.map((b) => {
+                                              if (b.id === buyer.id) {
+                                                const updatedBuyer = {
+                                                  ...b,
+                                                  tax_account_id: taxAccount.id,
+                                                  exchange_ids: [] // Reset exchanges when tax account changes
+                                                };
+                                                console.log('✏️ Buyer after tax account selection:', updatedBuyer);
+                                                return updatedBuyer;
+                                              }
+                                              return b;
+                                            });
+                                            console.log('📋 All buyers after update:', updated);
+                                            return updated;
+                                          });
+                                          
                                           const newSearch = { ...buyerTaxAccountSearch };
                                           newSearch[buyer.id] = taxAccount.name;
                                           setBuyerTaxAccountSearch(newSearch);
