@@ -9,6 +9,7 @@ import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
+import { MessagingSystem } from "@/components/MessagingSystem";
 
 interface Property {
   id: number;
@@ -1021,6 +1022,15 @@ export default function PropertyViewPage({
 
       <div className="mt-8">
         <DocumentRepository entityType="property" entityId={id} />
+      </div>
+
+      {/* Messaging System */}
+      <div className="mt-6">
+        <MessagingSystem
+          entityType="property"
+          entityId={parseInt(id)}
+          entityName={property?.address}
+        />
       </div>
 
       {/* Tasks Section */}

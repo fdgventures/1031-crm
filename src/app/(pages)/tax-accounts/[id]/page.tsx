@@ -8,6 +8,7 @@ import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
+import { MessagingSystem } from "@/components/MessagingSystem";
 
 interface TaxAccount {
   id: number;
@@ -1538,6 +1539,15 @@ export default function TaxAccountViewPage({
             </div>
           </div>
         )}
+
+        {/* Messaging System */}
+        <div className="mt-6">
+          <MessagingSystem
+            entityType="tax_account"
+            entityId={parseInt(id)}
+            entityName={taxAccount?.name}
+          />
+        </div>
 
         {/* Tasks Section */}
         <div className="mt-6">

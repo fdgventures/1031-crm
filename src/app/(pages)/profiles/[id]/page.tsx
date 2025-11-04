@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
+import { MessagingSystem } from "@/components/MessagingSystem";
 
 interface Profile {
   id: string;
@@ -1297,6 +1298,17 @@ export default function ProfileViewPage({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Messaging System */}
+      <div className="mt-6">
+        <MessagingSystem
+          entityType="profile"
+          entityId={parseInt(id)}
+          entityName={
+            profile ? `${profile.first_name} ${profile.last_name}` : undefined
+          }
+        />
       </div>
 
       {/* Tasks Section */}
