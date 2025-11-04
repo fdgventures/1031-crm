@@ -333,6 +333,30 @@ export default function TaxAccountsPage() {
         );
       }
 
+      // Automatically create Fee Schedule based on active templates
+      const { data: feeTemplates, error: feeTemplatesError } = await supabase
+        .from("fee_templates")
+        .select("*")
+        .eq("is_active", true);
+
+      if (!feeTemplatesError && feeTemplates && feeTemplates.length > 0) {
+        const feeSchedules = feeTemplates.map((template) => ({
+          tax_account_id: createdTaxAccount.id,
+          fee_template_id: template.id,
+          name: template.name,
+          price: template.price,
+          description: template.description,
+        }));
+
+        const { error: feeSchedulesError } = await supabase
+          .from("fee_schedules")
+          .insert(feeSchedules);
+
+        if (feeSchedulesError) {
+          console.error("Failed to create fee schedules:", feeSchedulesError);
+        }
+      }
+
       setSuccess("Tax Account created successfully!");
       resetForm();
       await loadTaxAccounts();

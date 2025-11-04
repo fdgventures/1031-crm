@@ -5,6 +5,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { FeeScheduleManager } from "@/components/FeeScheduleManager";
 
 type AuthUser = {
   id: string;
@@ -181,6 +182,11 @@ export default function AdminDashboard() {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Fee Schedule Manager Section */}
+        <div className="mt-8">
+          <FeeScheduleManager />
         </div>
       </div>
     </div>

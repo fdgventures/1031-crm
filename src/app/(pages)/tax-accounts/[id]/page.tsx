@@ -9,6 +9,7 @@ import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import { MessagingSystem } from "@/components/MessagingSystem";
+import { FeeSchedule } from "@/components/FeeSchedule";
 
 interface TaxAccount {
   id: number;
@@ -1031,6 +1032,11 @@ export default function TaxAccountViewPage({
               ))}
             </div>
           )}
+        </div>
+
+        {/* Fee Schedule Section */}
+        <div className="mt-6">
+          <FeeSchedule taxAccountId={numericId} isAdmin={isAdmin} />
         </div>
 
         {/* Document Repository Section */}
