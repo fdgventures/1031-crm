@@ -56,6 +56,8 @@ interface ExchangeTransaction {
     contract_date: string;
     sale_type: "Property" | "Entity";
     created_at: string;
+    status?: string | null;
+    estimated_close_date?: string | null;
   };
 }
 

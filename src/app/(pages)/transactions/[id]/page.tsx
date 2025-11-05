@@ -21,6 +21,8 @@ interface Transaction {
   sale_type: "Property" | "Entity";
   created_at: string;
   updated_at: string;
+  status?: string | null;
+  estimated_close_date?: string | null;
   closing_agent?: {
     id: number;
     first_name: string;
@@ -88,6 +90,12 @@ export default function TransactionViewPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
+  const [isEditingStatus, setIsEditingStatus] = useState(false);
+  const [editStatusValues, setEditStatusValues] = useState({
+    status: "",
+    estimated_close_date: "",
+  });
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
 
   const loadTransactionData = useCallback(async () => {
     try {
@@ -219,6 +227,46 @@ export default function TransactionViewPage({
   useEffect(() => {
     void loadTransactionData();
   }, [loadTransactionData]);
+
+  const startEditingStatus = () => {
+    if (!transaction) return;
+    setEditStatusValues({
+      status: transaction.status || "Pending",
+      estimated_close_date: transaction.estimated_close_date || "",
+    });
+    setIsEditingStatus(true);
+  };
+
+  const cancelEditingStatus = () => {
+    setIsEditingStatus(false);
+  };
+
+  const saveStatusChanges = async () => {
+    if (!transaction) return;
+
+    try {
+      setIsSavingStatus(true);
+      setError(null);
+
+      const { error: updateError } = await supabase
+        .from("transactions")
+        .update({
+          status: editStatusValues.status || null,
+          estimated_close_date: editStatusValues.estimated_close_date || null,
+        })
+        .eq("id", id);
+
+      if (updateError) throw updateError;
+
+      await loadTransactionData();
+      setIsEditingStatus(false);
+    } catch (err) {
+      console.error("Failed to save changes:", err);
+      setError(getErrorMessage(err, "Failed to save changes"));
+    } finally {
+      setIsSavingStatus(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -359,6 +407,94 @@ export default function TransactionViewPage({
                 <p className="text-lg text-gray-900">
                   {new Date(transaction.created_at).toLocaleString()}
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Transaction Status */}
+        <div className="bg-white shadow rounded-lg mt-6">
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-gray-900">
+              Transaction Status
+            </h2>
+            {!isEditingStatus ? (
+              <Button onClick={startEditingStatus} variant="outline">
+                Edit
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button
+                  onClick={saveStatusChanges}
+                  variant="primary"
+                  disabled={isSavingStatus}
+                >
+                  {isSavingStatus ? "Saving..." : "Save"}
+                </Button>
+                <Button
+                  onClick={cancelEditingStatus}
+                  variant="outline"
+                  disabled={isSavingStatus}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Status */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">Status</h3>
+                {isEditingStatus ? (
+                  <select
+                    value={editStatusValues.status}
+                    onChange={(e) =>
+                      setEditStatusValues({
+                        ...editStatusValues,
+                        status: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="On-Hold">On-Hold</option>
+                    <option value="Closed">Closed</option>
+                    <option value="Canceled">Canceled</option>
+                  </select>
+                ) : (
+                  <p className="text-lg text-gray-900">
+                    {transaction.status || "Pending"}
+                  </p>
+                )}
+              </div>
+
+              {/* Estimated Close Date */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                  Estimated Close Date
+                </h3>
+                {isEditingStatus ? (
+                  <input
+                    type="date"
+                    value={editStatusValues.estimated_close_date}
+                    onChange={(e) =>
+                      setEditStatusValues({
+                        ...editStatusValues,
+                        estimated_close_date: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                ) : (
+                  <p className="text-lg text-gray-900">
+                    {transaction.estimated_close_date
+                      ? new Date(
+                          transaction.estimated_close_date
+                        ).toLocaleDateString()
+                      : "—"}
+                  </p>
+                )}
               </div>
             </div>
           </div>

@@ -12,6 +12,8 @@ interface Transaction {
   contract_date: string;
   sale_type: string;
   created_at: string;
+  status?: string | null;
+  estimated_close_date?: string | null;
 }
 
 interface Profile {
@@ -69,6 +71,8 @@ type NewTransactionInsert = {
   sale_type: "Property" | "Entity";
   pdf_contract_url?: string | null;
   closing_agent_profile_id?: number;
+  status?: string;
+  estimated_close_date?: string | null;
 };
 
 type PendingOwnershipInsert = {
@@ -797,6 +801,7 @@ export default function TransactionsPage() {
         contract_purchase_price: parsedPurchasePrice,
         contract_date: contractDate,
         sale_type: saleType,
+        status: 'Pending',
       };
 
       if (pdfUrl) {
