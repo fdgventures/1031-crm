@@ -94,6 +94,13 @@ export default function TaxAccountViewPage({
   const [editingBusinessName, setEditingBusinessName] = useState(false);
   const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
 
+  // Set page title
+  useEffect(() => {
+    if (taxAccount) {
+      document.title = `${taxAccount.name} | Tax Accounts | 1031 Exchange CRM`;
+    }
+  }, [taxAccount]);
+
   // Property modals
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
   const [showCreatePropertyModal, setShowCreatePropertyModal] = useState(false);

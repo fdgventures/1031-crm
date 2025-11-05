@@ -3,11 +3,16 @@
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 
 export default function EATViewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
+
+  // Set page title
+  useEffect(() => {
+    document.title = `EAT #${id} | 1031 Exchange CRM`;
+  }, [id]);
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">

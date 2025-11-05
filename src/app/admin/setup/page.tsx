@@ -1,11 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui";
 import { createClient } from "@/lib/supabase-client";
 
 export default function SetupPage() {
   const [isLoading, setIsLoading] = useState(false);
+
+  // Set page title
+  useEffect(() => {
+    document.title = "Setup | 1031 Exchange CRM";
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const supabase = createClient();

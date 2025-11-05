@@ -15,6 +15,11 @@ export default function LogsPage() {
     []
   );
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Activity Logs | 1031 Exchange CRM";
+  }, []);
+
   const loadLogs = useCallback(async () => {
     if (!supabase) return;
     

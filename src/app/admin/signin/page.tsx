@@ -13,6 +13,11 @@ export default function AdminSignInPage() {
   const [error, setError] = useState<string | null>(null);
   const supabase = getSupabaseClient();
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Admin Sign In | 1031 Exchange CRM";
+  }, []);
+
   const checkCurrentUser = useCallback(async () => {
     try {
       const {

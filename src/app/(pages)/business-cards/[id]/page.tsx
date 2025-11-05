@@ -107,6 +107,13 @@ export default function BusinessCardViewPage({
   const [success, setSuccess] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Set page title
+  useEffect(() => {
+    if (businessCard) {
+      document.title = `${businessCard.business_name} | Business Cards | 1031 Exchange CRM`;
+    }
+  }, [businessCard]);
+
   // Edit business card modal
   const [showEditModal, setShowEditModal] = useState(false);
   const [editBusinessName, setEditBusinessName] = useState("");

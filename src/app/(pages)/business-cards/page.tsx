@@ -85,6 +85,11 @@ export default function BusinessCardsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Business Cards | 1031 Exchange CRM";
+  }, []);
+
   // Form state
   const [businessName, setBusinessName] = useState("");
   const [email, setEmail] = useState("");

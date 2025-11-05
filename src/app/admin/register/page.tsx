@@ -1,11 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 
 export default function AdminRegisterPage() {
   const [email, setEmail] = useState("");
+
+  // Set page title
+  useEffect(() => {
+    document.title = "Admin Register | 1031 Exchange CRM";
+  }, []);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);

@@ -48,6 +48,12 @@ export default function AdminsManagementPage() {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showInviteForm, setShowInviteForm] = useState(false);
+
+  // Set page title
+  useEffect(() => {
+    document.title = "Admin Management | 1031 Exchange CRM";
+  }, []);
+
   const [newInvite, setNewInvite] = useState({
     email: "",
     role_type: "platform_super_admin",

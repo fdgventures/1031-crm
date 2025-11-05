@@ -99,6 +99,13 @@ export default function TransactionViewPage({
   });
   const [isSavingStatus, setIsSavingStatus] = useState(false);
 
+  // Set page title
+  useEffect(() => {
+    if (transaction) {
+      document.title = `${transaction.transaction_number} | Transactions | 1031 Exchange CRM`;
+    }
+  }, [transaction]);
+
   const loadTransactionData = useCallback(async () => {
     try {
       setLoading(true);

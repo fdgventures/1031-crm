@@ -1,11 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button, Input, Accordion } from "@/components/ui";
 
 export default function Home() {
   const [inputValue, setInputValue] = useState("");
   const [inputError, setInputError] = useState("");
+
+  // Set page title
+  useEffect(() => {
+    document.title = "1031 Exchange CRM";
+  }, []);
 
   const accordionItems = [
     {

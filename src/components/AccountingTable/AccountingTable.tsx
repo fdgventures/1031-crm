@@ -3,17 +3,20 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
-import { AccountingEntry, AccountingEntryInsert } from "@/types/accounting.types";
+import { AccountingEntry } from "@/types/accounting.types";
+import TakeFeeModal from "./TakeFeeModal";
 
 interface AccountingTableProps {
   transactionId?: number; // Optional - if not provided, shows all entries for exchange
   exchangeId?: number; // If provided, filter entries for this exchange
+  taxAccountId?: number; // Tax account ID of exchange owner (for fees)
   onEntryChange?: () => void;
 }
 
 export default function AccountingTable({
   transactionId,
   exchangeId,
+  taxAccountId,
   onEntryChange,
 }: AccountingTableProps) {
   const supabase = getSupabaseClient();
@@ -26,19 +29,22 @@ export default function AccountingTable({
     debit: string;
     description: string;
   }>({ credit: "", debit: "", description: "" });
+  const [showTakeFeeModal, setShowTakeFeeModal] = useState(false);
 
   const loadEntries = useCallback(async () => {
     try {
       setLoading(true);
       let query = supabase
         .from("accounting_entries")
-        .select(`
+        .select(
+          `
           *,
           from_exchange:from_exchange_id (id, exchange_number),
           to_exchange:to_exchange_id (id, exchange_number),
           transaction:transaction_id (id, transaction_number),
           task:task_id (id, title, status)
-        `)
+        `
+        )
         .order("date", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -49,7 +55,9 @@ export default function AccountingTable({
 
       // If exchangeId provided, filter by to_exchange_id OR from_exchange_id
       if (exchangeId) {
-        query = query.or(`to_exchange_id.eq.${exchangeId},from_exchange_id.eq.${exchangeId}`);
+        query = query.or(
+          `to_exchange_id.eq.${exchangeId},from_exchange_id.eq.${exchangeId}`
+        );
       }
 
       const { data, error } = await query;
@@ -123,8 +131,14 @@ export default function AccountingTable({
     }
   };
 
-  const totalCredit = entries.reduce((sum, entry) => sum + (entry.credit || 0), 0);
-  const totalDebit = entries.reduce((sum, entry) => sum + (entry.debit || 0), 0);
+  const totalCredit = entries.reduce(
+    (sum, entry) => sum + (entry.credit || 0),
+    0
+  );
+  const totalDebit = entries.reduce(
+    (sum, entry) => sum + (entry.debit || 0),
+    0
+  );
 
   if (loading) {
     return (
@@ -139,8 +153,13 @@ export default function AccountingTable({
 
   return (
     <div className="bg-white shadow rounded-lg">
-      <div className="px-6 py-4 border-b border-gray-200">
+      <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
         <h2 className="text-xl font-semibold text-gray-900">Accounting</h2>
+        {exchangeId && taxAccountId && (
+          <Button onClick={() => setShowTakeFeeModal(true)} variant="primary">
+            Take Fee
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -151,7 +170,9 @@ export default function AccountingTable({
 
       <div className="p-6">
         {entries.length === 0 ? (
-          <p className="text-gray-500 text-center py-4">No accounting entries yet</p>
+          <p className="text-gray-500 text-center py-4">
+            No accounting entries yet
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -191,7 +212,7 @@ export default function AccountingTable({
               <tbody className="bg-white divide-y divide-gray-200">
                 {entries.map((entry) => {
                   const isEditing = editingId === entry.id;
-                  
+
                   return (
                     <tr key={entry.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
@@ -213,13 +234,21 @@ export default function AccountingTable({
                             step="0.01"
                             value={editValues.credit}
                             onChange={(e) =>
-                              setEditValues({ ...editValues, credit: e.target.value })
+                              setEditValues({
+                                ...editValues,
+                                credit: e.target.value,
+                              })
                             }
                             className="w-full px-2 py-1 border border-gray-300 rounded text-right"
                           />
                         ) : (
                           <span className="text-green-600 font-medium">
-                            {entry.credit > 0 ? `$${entry.credit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                            {entry.credit > 0
+                              ? `$${entry.credit.toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}`
+                              : "—"}
                           </span>
                         )}
                       </td>
@@ -229,7 +258,10 @@ export default function AccountingTable({
                             type="text"
                             value={editValues.description}
                             onChange={(e) =>
-                              setEditValues({ ...editValues, description: e.target.value })
+                              setEditValues({
+                                ...editValues,
+                                description: e.target.value,
+                              })
                             }
                             className="w-full px-2 py-1 border border-gray-300 rounded"
                           />
@@ -249,13 +281,21 @@ export default function AccountingTable({
                             step="0.01"
                             value={editValues.debit}
                             onChange={(e) =>
-                              setEditValues({ ...editValues, debit: e.target.value })
+                              setEditValues({
+                                ...editValues,
+                                debit: e.target.value,
+                              })
                             }
                             className="w-full px-2 py-1 border border-gray-300 rounded text-right"
                           />
                         ) : (
                           <span className="text-red-600 font-medium">
-                            {entry.debit > 0 ? `$${entry.debit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                            {entry.debit > 0
+                              ? `$${entry.debit.toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}`
+                              : "—"}
                           </span>
                         )}
                       </td>
@@ -298,25 +338,52 @@ export default function AccountingTable({
               </tbody>
               <tfoot className="bg-gray-100 border-t-2 border-gray-300">
                 <tr>
-                  <td colSpan={2} className="px-4 py-3 text-sm font-bold text-gray-900">
+                  <td
+                    colSpan={2}
+                    className="px-4 py-3 text-sm font-bold text-gray-900"
+                  >
                     TOTALS:
                   </td>
                   <td className="px-4 py-3 text-sm font-bold text-right text-green-600">
-                    ${totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    $
+                    {totalCredit.toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </td>
                   <td className="px-4 py-3"></td>
                   <td className="px-4 py-3 text-sm font-bold text-right text-red-600">
-                    ${totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    $
+                    {totalDebit.toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </td>
                   <td className="px-4 py-3"></td>
                 </tr>
                 <tr>
-                  <td colSpan={2} className="px-4 py-2 text-sm font-bold text-gray-900">
+                  <td
+                    colSpan={2}
+                    className="px-4 py-2 text-sm font-bold text-gray-900"
+                  >
                     BALANCE:
                   </td>
-                  <td colSpan={exchangeId ? 4 : 5} className="px-4 py-2 text-sm font-bold text-right">
-                    <span className={totalCredit - totalDebit >= 0 ? "text-green-600" : "text-red-600"}>
-                      ${Math.abs(totalCredit - totalDebit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td
+                    colSpan={exchangeId ? 4 : 5}
+                    className="px-4 py-2 text-sm font-bold text-right"
+                  >
+                    <span
+                      className={
+                        totalCredit - totalDebit >= 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }
+                    >
+                      $
+                      {Math.abs(totalCredit - totalDebit).toLocaleString(
+                        "en-US",
+                        { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+                      )}
                       {totalCredit - totalDebit >= 0 ? " (Credit)" : " (Debit)"}
                     </span>
                   </td>
@@ -326,7 +393,20 @@ export default function AccountingTable({
           </div>
         )}
       </div>
+
+      {/* Take Fee Modal */}
+      {showTakeFeeModal && exchangeId && taxAccountId && (
+        <TakeFeeModal
+          exchangeId={exchangeId}
+          taxAccountId={taxAccountId}
+          onClose={() => setShowTakeFeeModal(false)}
+          onSuccess={() => {
+            setShowTakeFeeModal(false);
+            loadEntries();
+            onEntryChange?.();
+          }}
+        />
+      )}
     </div>
   );
 }
-

@@ -86,6 +86,13 @@ export default function ExchangeViewPage({
   });
   const [isSaving, setIsSaving] = useState(false);
 
+  // Set page title
+  useEffect(() => {
+    if (exchange) {
+      document.title = `${exchange.exchange_number} | Exchanges | 1031 Exchange CRM`;
+    }
+  }, [exchange]);
+
   const loadExchangeData = useCallback(async () => {
     try {
       setLoading(true);
@@ -663,6 +670,7 @@ export default function ExchangeViewPage({
         <div className="mt-6">
           <AccountingTable
             exchangeId={parseInt(id)}
+            taxAccountId={exchange.tax_account_id}
             onEntryChange={() => void loadExchangeData()}
           />
         </div>

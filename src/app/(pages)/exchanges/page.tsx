@@ -40,6 +40,11 @@ export default function ExchangesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Exchanges | 1031 Exchange CRM";
+  }, []);
+
   const loadExchanges = useCallback(async () => {
     try {
       const { data, error } = await supabase

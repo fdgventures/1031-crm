@@ -15,6 +15,11 @@ export default function WorkQueuePage() {
     []
   );
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Work Queue | 1031 Exchange CRM";
+  }, []);
+
   const loadTasks = useCallback(async () => {
     if (!supabase) return;
     

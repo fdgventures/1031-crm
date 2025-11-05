@@ -49,6 +49,11 @@ export default function ProfilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Profiles | 1031 Exchange CRM";
+  }, []);
+
   const loadProfiles = useCallback(async () => {
     try {
       setLoading(true);

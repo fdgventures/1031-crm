@@ -1,4 +1,13 @@
+"use client";
+
+import { useEffect } from "react";
+
 export default function EATPage() {
+  // Set page title
+  useEffect(() => {
+    document.title = "EAT | 1031 Exchange CRM";
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">

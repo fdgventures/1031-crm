@@ -27,6 +27,11 @@ export default function AdminDashboard() {
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Admin Dashboard | 1031 Exchange CRM";
+  }, []);
+
   const checkAuth = useCallback(async () => {
     try {
       setIsLoading(true);

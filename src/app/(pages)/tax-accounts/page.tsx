@@ -65,6 +65,11 @@ export default function TaxAccountsPage() {
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [selectedEntityId, setSelectedEntityId] = useState("");
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Tax Accounts | 1031 Exchange CRM";
+  }, []);
+
   const loadTaxAccounts = useCallback(async () => {
     const { data, error } = await supabase
       .from("tax_accounts")

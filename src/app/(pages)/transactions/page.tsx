@@ -130,6 +130,11 @@ export default function TransactionsPage() {
   const [buyerExchanges, setBuyerExchanges] = useState<{ [key: string]: Array<{ id: number; exchange_number: string; tax_account_id: number }> }>({});
   const [showExchangeDropdown, setShowExchangeDropdown] = useState<{ [key: string]: boolean }>({});
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Transactions | 1031 Exchange CRM";
+  }, []);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

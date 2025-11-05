@@ -25,6 +25,11 @@ export default function PropertiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Properties | 1031 Exchange CRM";
+  }, []);
+
   const loadProperties = useCallback(async () => {
     try {
       setLoading(true);

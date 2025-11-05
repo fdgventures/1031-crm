@@ -93,6 +93,13 @@ export default function PropertyViewPage({
   const [filteredTaxAccounts, setFilteredTaxAccounts] = useState<TaxAccount[]>([]);
   const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
 
+  // Set page title
+  useEffect(() => {
+    if (property) {
+      document.title = `${property.address} | Properties | 1031 Exchange CRM`;
+    }
+  }, [property]);
+
   // Edit and Delete property
   const [showEditModal, setShowEditModal] = useState(false);
   const [editAddress, setEditAddress] = useState("");

@@ -39,6 +39,11 @@ export default function RegisterInvitePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Admin Invitation | 1031 Exchange CRM";
+  }, []);
+
   const getErrorMessage = useCallback((err: unknown, fallback: string) => {
     if (err instanceof Error && err.message) {
       return err.message;
