@@ -10,6 +10,7 @@ import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
 import AccountingTable from "@/components/AccountingTable/AccountingTable";
+import { PropertyIdentification } from "@/components/PropertyIdentification";
 
 interface Exchange {
   id: number;
@@ -661,6 +662,14 @@ export default function ExchangeViewPage({
           <AccountingTable
             exchangeId={parseInt(id)}
             onEntryChange={() => void loadExchangeData()}
+          />
+        </div>
+
+        {/* Property Identification Section */}
+        <div className="mt-6">
+          <PropertyIdentification
+            exchangeId={parseInt(id)}
+            totalSalePropertyValue={exchange.total_sale_property_value || 0}
           />
         </div>
 
