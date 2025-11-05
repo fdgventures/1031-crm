@@ -10,6 +10,7 @@ import { LogViewer } from "@/components/LogViewer";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import { MessagingSystem } from "@/components/MessagingSystem";
 import { FeeSchedule } from "@/components/FeeSchedule";
+import { YearToDateReview } from "@/components/YearToDateReview";
 
 interface TaxAccount {
   id: number;
@@ -1044,6 +1045,11 @@ export default function TaxAccountViewPage({
         {/* Fee Schedule Section */}
         <div className="mt-6">
           <FeeSchedule taxAccountId={numericId} isAdmin={isAdmin} />
+        </div>
+
+        {/* Year to Date Review Section */}
+        <div className="mt-6">
+          <YearToDateReview taxAccountId={numericId} />
         </div>
 
         {/* Document Repository Section */}

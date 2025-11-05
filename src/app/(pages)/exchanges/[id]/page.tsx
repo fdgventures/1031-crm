@@ -11,6 +11,7 @@ import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
 import AccountingTable from "@/components/AccountingTable/AccountingTable";
 import { PropertyIdentification } from "@/components/PropertyIdentification";
+import { calculateExchangeFinancials, type ExchangeFinancials } from "@/lib/exchange-calculations";
 
 interface Exchange {
   id: number;
@@ -80,11 +81,13 @@ export default function ExchangeViewPage({
     relinquished_close_date: "",
     day_45_date: "",
     day_180_date: "",
-    total_sale_property_value: "",
-    total_replacement_property: "",
-    value_remaining: "",
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [calculatedFinancials, setCalculatedFinancials] = useState<ExchangeFinancials>({
+    totalSalePropertyValue: 0,
+    totalReplacementProperty: 0,
+    valueRemaining: 0,
+  });
 
   // Set page title
   useEffect(() => {
@@ -149,6 +152,10 @@ export default function ExchangeViewPage({
 
       if (transactionsError) throw transactionsError;
       setTransactions(transactionsData || []);
+
+      // Calculate financials from accounting entries
+      const financials = await calculateExchangeFinancials(parseInt(id));
+      setCalculatedFinancials(financials);
     } catch (err) {
       console.error("Failed to load exchange:", err);
       setError(getErrorMessage(err, "Failed to load exchange"));
@@ -168,9 +175,6 @@ export default function ExchangeViewPage({
       relinquished_close_date: exchange.relinquished_close_date || "",
       day_45_date: exchange.day_45_date || "",
       day_180_date: exchange.day_180_date || "",
-      total_sale_property_value: exchange.total_sale_property_value?.toString() || "",
-      total_replacement_property: exchange.total_replacement_property?.toString() || "",
-      value_remaining: exchange.value_remaining?.toString() || "",
     });
     setIsEditing(true);
   };
@@ -193,9 +197,6 @@ export default function ExchangeViewPage({
           relinquished_close_date: editValues.relinquished_close_date || null,
           day_45_date: editValues.day_45_date || null,
           day_180_date: editValues.day_180_date || null,
-          total_sale_property_value: editValues.total_sale_property_value ? parseFloat(editValues.total_sale_property_value) : null,
-          total_replacement_property: editValues.total_replacement_property ? parseFloat(editValues.total_replacement_property) : null,
-          value_remaining: editValues.value_remaining ? parseFloat(editValues.value_remaining) : null,
         })
         .eq("id", id);
 
@@ -403,73 +404,68 @@ export default function ExchangeViewPage({
                 )}
               </div>
 
-              {/* Total Sale Property Value */}
+              {/* Total Sale Property Value - Auto-calculated */}
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                <h3 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
                   Total Sale Property Value
+                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                    Auto-calculated
+                  </span>
                 </h3>
-                {isEditing ? (
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editValues.total_sale_property_value}
-                    onChange={(e) => setEditValues({ ...editValues, total_sale_property_value: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    placeholder="0.00"
-                  />
-                ) : (
-                  <p className="text-lg text-gray-900">
-                    {exchange.total_sale_property_value 
-                      ? `$${exchange.total_sale_property_value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-                      : "—"}
-                  </p>
-                )}
+                <p className="text-lg font-semibold text-green-600">
+                  {calculatedFinancials.totalSalePropertyValue > 0
+                    ? `$${calculatedFinancials.totalSalePropertyValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                    : "$0.00"}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  From sale proceeds in accounting
+                </p>
               </div>
 
-              {/* Total Replacement Property */}
+              {/* Total Replacement Property - Auto-calculated */}
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                <h3 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
                   Total Replacement Property
+                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                    Auto-calculated
+                  </span>
                 </h3>
-                {isEditing ? (
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editValues.total_replacement_property}
-                    onChange={(e) => setEditValues({ ...editValues, total_replacement_property: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    placeholder="0.00"
-                  />
-                ) : (
-                  <p className="text-lg text-gray-900">
-                    {exchange.total_replacement_property 
-                      ? `$${exchange.total_replacement_property.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-                      : "—"}
-                  </p>
-                )}
+                <p className="text-lg font-semibold text-red-600">
+                  {calculatedFinancials.totalReplacementProperty > 0
+                    ? `$${calculatedFinancials.totalReplacementProperty.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                    : "$0.00"}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  From purchase funds in accounting
+                </p>
               </div>
 
-              {/* Value Remaining */}
+              {/* Value Remaining - Auto-calculated */}
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                <h3 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
                   Value Remaining
+                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                    Auto-calculated
+                  </span>
                 </h3>
-                {isEditing ? (
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editValues.value_remaining}
-                    onChange={(e) => setEditValues({ ...editValues, value_remaining: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    placeholder="0.00"
-                  />
-                ) : (
-                  <p className="text-lg text-gray-900">
-                    {exchange.value_remaining 
-                      ? `$${exchange.value_remaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-                      : "—"}
-                  </p>
-                )}
+                <p className={`text-lg font-semibold ${
+                  calculatedFinancials.valueRemaining > 0 
+                    ? 'text-orange-600' 
+                    : calculatedFinancials.valueRemaining < 0
+                    ? 'text-red-600'
+                    : 'text-gray-600'
+                }`}>
+                  {calculatedFinancials.valueRemaining !== 0
+                    ? `$${Math.abs(calculatedFinancials.valueRemaining).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                    : "$0.00"}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {calculatedFinancials.valueRemaining > 0 
+                    ? 'Still needs to be reinvested' 
+                    : calculatedFinancials.valueRemaining < 0
+                    ? 'Over-invested (boot received)'
+                    : 'Fully reinvested'}
+                </p>
               </div>
             </div>
           </div>
@@ -679,7 +675,7 @@ export default function ExchangeViewPage({
         <div className="mt-6">
           <PropertyIdentification
             exchangeId={parseInt(id)}
-            totalSalePropertyValue={exchange.total_sale_property_value || 0}
+            totalSalePropertyValue={calculatedFinancials.totalSalePropertyValue}
           />
         </div>
 
