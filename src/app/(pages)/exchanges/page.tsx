@@ -10,6 +10,13 @@ interface Exchange {
   tax_account_id: number;
   created_at: string;
   updated_at: string;
+  status?: string | null;
+  relinquished_close_date?: string | null;
+  day_45_date?: string | null;
+  day_180_date?: string | null;
+  total_sale_property_value?: number | null;
+  total_replacement_property?: number | null;
+  value_remaining?: number | null;
   tax_account?: {
     id: number;
     name: string;

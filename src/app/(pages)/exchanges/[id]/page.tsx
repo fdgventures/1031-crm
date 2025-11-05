@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/get-error-message";
 import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
+import AccountingTable from "@/components/AccountingTable/AccountingTable";
 
 interface Exchange {
   id: number;
@@ -16,6 +17,13 @@ interface Exchange {
   tax_account_id: number;
   created_at: string;
   updated_at: string;
+  status?: string | null;
+  relinquished_close_date?: string | null;
+  day_45_date?: string | null;
+  day_180_date?: string | null;
+  total_sale_property_value?: number | null;
+  total_replacement_property?: number | null;
+  value_remaining?: number | null;
   tax_account?: {
     id: number;
     name: string;
@@ -63,6 +71,17 @@ export default function ExchangeViewPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValues, setEditValues] = useState({
+    status: "",
+    relinquished_close_date: "",
+    day_45_date: "",
+    day_180_date: "",
+    total_sale_property_value: "",
+    total_replacement_property: "",
+    value_remaining: "",
+  });
+  const [isSaving, setIsSaving] = useState(false);
 
   const loadExchangeData = useCallback(async () => {
     try {
@@ -131,6 +150,56 @@ export default function ExchangeViewPage({
   useEffect(() => {
     void loadExchangeData();
   }, [loadExchangeData]);
+
+  const startEditing = () => {
+    if (!exchange) return;
+    setEditValues({
+      status: exchange.status || "Pending",
+      relinquished_close_date: exchange.relinquished_close_date || "",
+      day_45_date: exchange.day_45_date || "",
+      day_180_date: exchange.day_180_date || "",
+      total_sale_property_value: exchange.total_sale_property_value?.toString() || "",
+      total_replacement_property: exchange.total_replacement_property?.toString() || "",
+      value_remaining: exchange.value_remaining?.toString() || "",
+    });
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+  };
+
+  const saveChanges = async () => {
+    if (!exchange) return;
+    
+    try {
+      setIsSaving(true);
+      setError(null);
+
+      const { error: updateError } = await supabase
+        .from("exchanges")
+        .update({
+          status: editValues.status || null,
+          relinquished_close_date: editValues.relinquished_close_date || null,
+          day_45_date: editValues.day_45_date || null,
+          day_180_date: editValues.day_180_date || null,
+          total_sale_property_value: editValues.total_sale_property_value ? parseFloat(editValues.total_sale_property_value) : null,
+          total_replacement_property: editValues.total_replacement_property ? parseFloat(editValues.total_replacement_property) : null,
+          value_remaining: editValues.value_remaining ? parseFloat(editValues.value_remaining) : null,
+        })
+        .eq("id", id);
+
+      if (updateError) throw updateError;
+
+      await loadExchangeData();
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Failed to save changes:", err);
+      setError(getErrorMessage(err, "Failed to save changes"));
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -204,6 +273,193 @@ export default function ExchangeViewPage({
                 <p className="text-lg text-gray-900">
                   {new Date(exchange.created_at).toLocaleString()}
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Exchange Information */}
+        <div className="bg-white shadow rounded-lg mb-6">
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-gray-900">
+              Exchange Information
+            </h2>
+            {!isEditing ? (
+              <Button onClick={startEditing} variant="outline">
+                Edit
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button 
+                  onClick={saveChanges} 
+                  variant="primary"
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </Button>
+                <Button 
+                  onClick={cancelEditing} 
+                  variant="outline"
+                  disabled={isSaving}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Status */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">Status</h3>
+                {isEditing ? (
+                  <select
+                    value={editValues.status}
+                    onChange={(e) => setEditValues({ ...editValues, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Active">Active</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                ) : (
+                  <p className="text-lg text-gray-900">
+                    {exchange.status || "Pending"}
+                  </p>
+                )}
+              </div>
+
+              {/* Relinquished Close Date */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                  Relinquished Close Date
+                </h3>
+                {isEditing ? (
+                  <input
+                    type="date"
+                    value={editValues.relinquished_close_date}
+                    onChange={(e) => setEditValues({ ...editValues, relinquished_close_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                ) : (
+                  <p className="text-lg text-gray-900">
+                    {exchange.relinquished_close_date 
+                      ? new Date(exchange.relinquished_close_date).toLocaleDateString() 
+                      : "—"}
+                  </p>
+                )}
+              </div>
+
+              {/* 45 Day Date */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                  45 Day Date
+                </h3>
+                {isEditing ? (
+                  <input
+                    type="date"
+                    value={editValues.day_45_date}
+                    onChange={(e) => setEditValues({ ...editValues, day_45_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                ) : (
+                  <p className="text-lg text-gray-900">
+                    {exchange.day_45_date 
+                      ? new Date(exchange.day_45_date).toLocaleDateString() 
+                      : "—"}
+                  </p>
+                )}
+              </div>
+
+              {/* 180 Day Date */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                  180 Day Date
+                </h3>
+                {isEditing ? (
+                  <input
+                    type="date"
+                    value={editValues.day_180_date}
+                    onChange={(e) => setEditValues({ ...editValues, day_180_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                ) : (
+                  <p className="text-lg text-gray-900">
+                    {exchange.day_180_date 
+                      ? new Date(exchange.day_180_date).toLocaleDateString() 
+                      : "—"}
+                  </p>
+                )}
+              </div>
+
+              {/* Total Sale Property Value */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                  Total Sale Property Value
+                </h3>
+                {isEditing ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editValues.total_sale_property_value}
+                    onChange={(e) => setEditValues({ ...editValues, total_sale_property_value: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    placeholder="0.00"
+                  />
+                ) : (
+                  <p className="text-lg text-gray-900">
+                    {exchange.total_sale_property_value 
+                      ? `$${exchange.total_sale_property_value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                      : "—"}
+                  </p>
+                )}
+              </div>
+
+              {/* Total Replacement Property */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                  Total Replacement Property
+                </h3>
+                {isEditing ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editValues.total_replacement_property}
+                    onChange={(e) => setEditValues({ ...editValues, total_replacement_property: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    placeholder="0.00"
+                  />
+                ) : (
+                  <p className="text-lg text-gray-900">
+                    {exchange.total_replacement_property 
+                      ? `$${exchange.total_replacement_property.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                      : "—"}
+                  </p>
+                )}
+              </div>
+
+              {/* Value Remaining */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                  Value Remaining
+                </h3>
+                {isEditing ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editValues.value_remaining}
+                    onChange={(e) => setEditValues({ ...editValues, value_remaining: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    placeholder="0.00"
+                  />
+                ) : (
+                  <p className="text-lg text-gray-900">
+                    {exchange.value_remaining 
+                      ? `$${exchange.value_remaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                      : "—"}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -398,6 +654,14 @@ export default function ExchangeViewPage({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Accounting Section */}
+        <div className="mt-6">
+          <AccountingTable
+            exchangeId={parseInt(id)}
+            onEntryChange={() => void loadExchangeData()}
+          />
         </div>
 
         <div className="mt-8">

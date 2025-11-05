@@ -899,6 +899,7 @@ export default function TransactionsPage() {
               .insert({
                 exchange_number: exchangeNumber,
                 tax_account_id: seller.tax_account_id,
+                status: 'Pending',
               })
               .select()
               .single();

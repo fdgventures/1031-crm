@@ -6,7 +6,7 @@ import { Button } from "@/components/ui";
 import { AccountingEntry, AccountingEntryInsert } from "@/types/accounting.types";
 
 interface AccountingTableProps {
-  transactionId: number;
+  transactionId?: number; // Optional - if not provided, shows all entries for exchange
   exchangeId?: number; // If provided, filter entries for this exchange
   onEntryChange?: () => void;
 }
@@ -39,9 +39,13 @@ export default function AccountingTable({
           transaction:transaction_id (id, transaction_number),
           task:task_id (id, title, status)
         `)
-        .eq("transaction_id", transactionId)
         .order("date", { ascending: false })
         .order("created_at", { ascending: false });
+
+      // Filter by transaction if provided
+      if (transactionId) {
+        query = query.eq("transaction_id", transactionId);
+      }
 
       // If exchangeId provided, filter by to_exchange_id OR from_exchange_id
       if (exchangeId) {
@@ -156,18 +160,26 @@ export default function AccountingTable({
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    To Exchange
-                  </th>
+                  {exchangeId ? (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Transaction
+                    </th>
+                  ) : (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      To Exchange
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Credit
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Description
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    From Exchange
-                  </th>
+                  {!exchangeId && (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      From Exchange
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Debit
                   </th>
@@ -185,9 +197,15 @@ export default function AccountingTable({
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                         {new Date(entry.date).toLocaleDateString()}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                        {entry.to_exchange?.exchange_number || "—"}
-                      </td>
+                      {exchangeId ? (
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                          {entry.transaction?.transaction_number || "—"}
+                        </td>
+                      ) : (
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                          {entry.to_exchange?.exchange_number || "—"}
+                        </td>
+                      )}
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                         {isEditing ? (
                           <input
@@ -219,9 +237,11 @@ export default function AccountingTable({
                           entry.description || "—"
                         )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                        {entry.from_exchange?.exchange_number || "—"}
-                      </td>
+                      {!exchangeId && (
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                          {entry.from_exchange?.exchange_number || "—"}
+                        </td>
+                      )}
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                         {isEditing ? (
                           <input
@@ -285,7 +305,6 @@ export default function AccountingTable({
                     ${totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-4 py-3"></td>
-                  <td className="px-4 py-3"></td>
                   <td className="px-4 py-3 text-sm font-bold text-right text-red-600">
                     ${totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
@@ -295,7 +314,7 @@ export default function AccountingTable({
                   <td colSpan={2} className="px-4 py-2 text-sm font-bold text-gray-900">
                     BALANCE:
                   </td>
-                  <td colSpan={5} className="px-4 py-2 text-sm font-bold text-right">
+                  <td colSpan={exchangeId ? 4 : 5} className="px-4 py-2 text-sm font-bold text-right">
                     <span className={totalCredit - totalDebit >= 0 ? "text-green-600" : "text-red-600"}>
                       ${Math.abs(totalCredit - totalDebit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       {totalCredit - totalDebit >= 0 ? " (Credit)" : " (Debit)"}
