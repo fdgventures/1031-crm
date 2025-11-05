@@ -23,6 +23,7 @@ interface Transaction {
   updated_at: string;
   status?: string | null;
   estimated_close_date?: string | null;
+  actual_close_date?: string | null;
   closing_agent?: {
     id: number;
     first_name: string;
@@ -94,6 +95,7 @@ export default function TransactionViewPage({
   const [editStatusValues, setEditStatusValues] = useState({
     status: "",
     estimated_close_date: "",
+    actual_close_date: "",
   });
   const [isSavingStatus, setIsSavingStatus] = useState(false);
 
@@ -233,6 +235,7 @@ export default function TransactionViewPage({
     setEditStatusValues({
       status: transaction.status || "Pending",
       estimated_close_date: transaction.estimated_close_date || "",
+      actual_close_date: transaction.actual_close_date || "",
     });
     setIsEditingStatus(true);
   };
@@ -253,6 +256,7 @@ export default function TransactionViewPage({
         .update({
           status: editStatusValues.status || null,
           estimated_close_date: editStatusValues.estimated_close_date || null,
+          actual_close_date: editStatusValues.actual_close_date || null,
         })
         .eq("id", id);
 
@@ -496,7 +500,58 @@ export default function TransactionViewPage({
                   </p>
                 )}
               </div>
+
+              {/* Actual Close Date */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">
+                  Actual Close Date
+                </h3>
+                {isEditingStatus ? (
+                  <input
+                    type="date"
+                    value={editStatusValues.actual_close_date}
+                    onChange={(e) =>
+                      setEditStatusValues({
+                        ...editStatusValues,
+                        actual_close_date: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                ) : (
+                  <p className="text-lg text-gray-900">
+                    {transaction.actual_close_date
+                      ? new Date(
+                          transaction.actual_close_date
+                        ).toLocaleDateString()
+                      : "—"}
+                  </p>
+                )}
+              </div>
             </div>
+
+            {/* Info about 1031 Exchange Timeline */}
+            {transaction.status === 'Closed' && transaction.actual_close_date && (
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+                <h4 className="text-sm font-semibold text-blue-900 mb-2">
+                  🕐 1031 Exchange Timeline
+                </h4>
+                <p className="text-sm text-blue-800">
+                  Based on actual close date: <strong>{new Date(transaction.actual_close_date).toLocaleDateString()}</strong>
+                </p>
+                <div className="mt-2 space-y-1 text-sm text-blue-700">
+                  <div>
+                    • <strong>45-Day Deadline:</strong> {new Date(new Date(transaction.actual_close_date).getTime() + 45 * 24 * 60 * 60 * 1000).toLocaleDateString()} (Identify replacement properties)
+                  </div>
+                  <div>
+                    • <strong>180-Day Deadline:</strong> {new Date(new Date(transaction.actual_close_date).getTime() + 180 * 24 * 60 * 60 * 1000).toLocaleDateString()} (Complete exchange)
+                  </div>
+                </div>
+                <p className="text-xs text-blue-600 mt-2">
+                  These dates will be automatically set in linked exchanges when status is marked as Closed.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

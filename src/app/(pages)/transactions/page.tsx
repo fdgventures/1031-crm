@@ -14,6 +14,7 @@ interface Transaction {
   created_at: string;
   status?: string | null;
   estimated_close_date?: string | null;
+  actual_close_date?: string | null;
 }
 
 interface Profile {
@@ -73,6 +74,7 @@ type NewTransactionInsert = {
   closing_agent_profile_id?: number;
   status?: string;
   estimated_close_date?: string | null;
+  actual_close_date?: string | null;
 };
 
 type PendingOwnershipInsert = {
