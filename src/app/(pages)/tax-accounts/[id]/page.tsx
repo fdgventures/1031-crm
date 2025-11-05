@@ -11,6 +11,7 @@ import AddressAutocomplete from "@/components/AddressAutocomplete";
 import { MessagingSystem } from "@/components/MessagingSystem";
 import { FeeSchedule } from "@/components/FeeSchedule";
 import { YearToDateReview } from "@/components/YearToDateReview";
+import { TaxAccountTransactions } from "@/components/TaxAccountTransactions";
 
 interface TaxAccount {
   id: number;
@@ -1050,6 +1051,11 @@ export default function TaxAccountViewPage({
         {/* Year to Date Review Section */}
         <div className="mt-6">
           <YearToDateReview taxAccountId={numericId} />
+        </div>
+
+        {/* Transactions Section */}
+        <div className="mt-6">
+          <TaxAccountTransactions taxAccountId={numericId} />
         </div>
 
         {/* Document Repository Section */}
