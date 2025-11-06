@@ -10,6 +10,9 @@ export interface SpousalTaxAccountData {
   spouseProfileId: number;
   spouseTaxAccountName: string;
   spouseBusinessName: string;
+  
+  // Optional entity link
+  entityId?: number | null;
 }
 
 /**
@@ -48,6 +51,7 @@ export async function createSpousalTaxAccount(
         primary_profile_id: data.primaryProfileId,
         spouse_profile_id: data.spouseProfileId,
         is_spousal: true,
+        entity_id: data.entityId || null,
       })
       .select()
       .single();

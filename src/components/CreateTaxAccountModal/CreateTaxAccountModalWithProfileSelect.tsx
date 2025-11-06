@@ -13,23 +13,28 @@ interface Profile {
 }
 
 interface CreateTaxAccountModalWithProfileSelectProps {
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
-  profiles: Profile[];
+  profiles?: Profile[];
   onSuccess: () => void;
+  preselectedEntityId?: number;
 }
 
 type AccountType = "individual" | "spousal";
 
 export default function CreateTaxAccountModalWithProfileSelect({
-  isOpen,
+  isOpen = true,
   onClose,
-  profiles,
+  profiles: profilesProp,
   onSuccess,
+  preselectedEntityId,
 }: CreateTaxAccountModalWithProfileSelectProps) {
   const supabase = getSupabaseClient();
   
   const [accountType, setAccountType] = useState<AccountType>("individual");
+  const [loadedProfiles, setLoadedProfiles] = useState<Profile[]>([]);
+  
+  const profiles = profilesProp || loadedProfiles;
   
   // Individual fields
   const [taxAccountName, setTaxAccountName] = useState("");
@@ -46,6 +51,24 @@ export default function CreateTaxAccountModalWithProfileSelect({
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Load profiles if not provided
+  useEffect(() => {
+    if (!profilesProp) {
+      loadAllProfiles();
+    }
+  }, [profilesProp]);
+
+  const loadAllProfiles = async () => {
+    const { data, error } = await supabase
+      .from("profile")
+      .select("id, first_name, last_name, email")
+      .order("last_name");
+
+    if (!error && data) {
+      setLoadedProfiles(data);
+    }
+  };
 
   // Auto-fill spouse name when selected
   useEffect(() => {
@@ -92,6 +115,7 @@ export default function CreateTaxAccountModalWithProfileSelect({
             profile_id: selectedProfileId,
             primary_profile_id: selectedProfileId,
             is_spousal: false,
+            entity_id: preselectedEntityId || null,
           })
           .select()
           .single();
@@ -164,6 +188,7 @@ export default function CreateTaxAccountModalWithProfileSelect({
           spouseProfileId: spouseProfileId,
           spouseTaxAccountName: spouseTaxAccountName,
           spouseBusinessName: spouseBusinessName,
+          entityId: preselectedEntityId,
         });
 
         if (!result.success) {
@@ -237,37 +262,47 @@ export default function CreateTaxAccountModalWithProfileSelect({
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Account Type Toggle */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Account Type
-              </label>
-              <div className="flex bg-gray-100 rounded-lg p-1">
-                <button
-                  type="button"
-                  onClick={() => setAccountType("individual")}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    accountType === "individual"
-                      ? "bg-white text-blue-600 shadow"
-                      : "text-gray-700 hover:text-gray-900"
-                  }`}
-                >
-                  Individual
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAccountType("spousal")}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    accountType === "spousal"
-                      ? "bg-white text-blue-600 shadow"
-                      : "text-gray-700 hover:text-gray-900"
-                  }`}
-                >
-                  Spousal/Joint
-                </button>
+            {!preselectedEntityId && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Account Type
+                </label>
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                  <button
+                    type="button"
+                    onClick={() => setAccountType("individual")}
+                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      accountType === "individual"
+                        ? "bg-white text-blue-600 shadow"
+                        : "text-gray-700 hover:text-gray-900"
+                    }`}
+                  >
+                    Individual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountType("spousal")}
+                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      accountType === "spousal"
+                        ? "bg-white text-blue-600 shadow"
+                        : "text-gray-700 hover:text-gray-900"
+                    }`}
+                  >
+                    Spousal/Joint
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
-            {accountType === "individual" ? (
+            {preselectedEntityId && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  Creating Individual Tax Account for Entity
+                </p>
+              </div>
+            )}
+
+            {(accountType === "individual" || preselectedEntityId) ? (
               /* Individual Tax Account Fields */
               <>
                 <div>
