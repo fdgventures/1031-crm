@@ -19,11 +19,20 @@ interface TaxAccount {
   name: string;
   account_number?: string | null;
   profile_id: number;
+  is_spousal?: boolean;
+  spouse_profile_id?: number | null;
   created_at: string;
   updated_at: string;
 }
 
 interface Profile {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+}
+
+interface SpouseProfile {
   id: number;
   first_name: string;
   last_name: string;
@@ -70,6 +79,7 @@ export default function TaxAccountViewPage({
   const supabase = getSupabaseClient();
   const [taxAccount, setTaxAccount] = useState<TaxAccount | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [spouseProfile, setSpouseProfile] = useState<SpouseProfile | null>(null);
   const [businessNames, setBusinessNames] = useState<BusinessName[]>([]);
   const [allProperties, setAllProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,12 +204,18 @@ export default function TaxAccountViewPage({
     }
 
     try {
-      // Load Tax Account with Profile in ONE query using JOIN
+      // Load Tax Account with Profile and Spouse in ONE query using JOIN
       const { data: taxAccountData, error: taxAccountError } = await supabase
         .from("tax_accounts")
         .select(`
           *,
           profile:profile_id (
+            id,
+            first_name,
+            last_name,
+            email
+          ),
+          spouse_profile:spouse_profile_id (
             id,
             first_name,
             last_name,
@@ -217,6 +233,13 @@ export default function TaxAccountViewPage({
         setProfile(Array.isArray(taxAccountData.profile) 
           ? taxAccountData.profile[0] 
           : taxAccountData.profile);
+      }
+
+      // Set spouse profile if exists
+      if (taxAccountData.spouse_profile) {
+        setSpouseProfile(Array.isArray(taxAccountData.spouse_profile)
+          ? taxAccountData.spouse_profile[0]
+          : taxAccountData.spouse_profile);
       }
 
       // Load Business Names and Properties in parallel
@@ -847,8 +870,13 @@ export default function TaxAccountViewPage({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-2">
-                Profile
+              <h3 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
+                {taxAccount?.is_spousal ? "Primary Owner" : "Profile"}
+                {taxAccount?.is_spousal && (
+                  <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
+                    Spousal
+                  </span>
+                )}
               </h3>
               {profile ? (
                 <div>
@@ -859,6 +887,16 @@ export default function TaxAccountViewPage({
                 </div>
               ) : (
                 <p className="text-gray-500">No profile linked</p>
+              )}
+              
+              {taxAccount?.is_spousal && spouseProfile && (
+                <div className="mt-3 pt-3 border-t border-purple-200">
+                  <p className="text-xs font-medium text-purple-700 mb-1">Spouse:</p>
+                  <p className="text-sm text-purple-900">
+                    {spouseProfile.first_name} {spouseProfile.last_name}
+                  </p>
+                  <p className="text-xs text-purple-600">{spouseProfile.email}</p>
+                </div>
               )}
             </div>
 

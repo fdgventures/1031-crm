@@ -10,6 +10,8 @@ import { DocumentRepository } from "@/components/document-repository";
 import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
 import { MessagingSystem } from "@/components/MessagingSystem";
+import { CreateTaxAccountModal } from "@/components/CreateTaxAccountModal";
+import { getProfileTaxAccounts } from "@/lib/spousal-tax-accounts";
 
 interface Profile {
   id: string;
@@ -139,13 +141,7 @@ export default function ProfileViewPage({
 
   const loadTaxAccounts = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("tax_accounts")
-        .select("id, name, created_at")
-        .eq("profile_id", id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
+      const data = await getProfileTaxAccounts(parseInt(id));
       setTaxAccounts(data ?? []);
     } catch (err) {
       console.error("Failed to load tax accounts:", err);
@@ -959,107 +955,16 @@ export default function ProfileViewPage({
         </div>
 
         {/* Create Tax Account Modal */}
-        {showCreateTaxAccountModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-md w-full">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    Create Tax Account
-                  </h2>
-                  <button
-                    onClick={() => {
-                      setShowCreateTaxAccountModal(false);
-                      setNewTaxAccountName("");
-                      setNewBusinessName("");
-                      setInviteError(null);
-                    }}
-                    className="text-gray-400 hover:text-gray-600 text-2xl"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                {inviteError && (
-                  <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
-                    <p className="text-sm text-red-600">{inviteError}</p>
-                  </div>
-                )}
-
-                {inviteSuccess && (
-                  <div className="mb-4 bg-green-50 border border-green-200 rounded-md p-4">
-                    <p className="text-sm text-green-600">{inviteSuccess}</p>
-                  </div>
-                )}
-
-                <form onSubmit={handleCreateTaxAccount} className="space-y-4">
-                  <div>
-                    <label
-                      htmlFor="newTaxAccountName"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Tax Account Name *
-                    </label>
-                    <input
-                      type="text"
-                      id="newTaxAccountName"
-                      value={newTaxAccountName}
-                      onChange={(e) => setNewTaxAccountName(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                      placeholder="Enter tax account name"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="newBusinessNameField"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Business Name (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      id="newBusinessNameField"
-                      value={newBusinessName}
-                      onChange={(e) => setNewBusinessName(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Leave empty to use Tax Account Name"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      If empty, a Business Name will be created with the same
-                      name as the Tax Account
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3 pt-4">
-                    <Button
-                      type="submit"
-                      disabled={creatingTaxAccount}
-                      variant="primary"
-                      className="flex-1"
-                    >
-                      {creatingTaxAccount ? "Creating..." : "Create"}
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        setShowCreateTaxAccountModal(false);
-                        setNewTaxAccountName("");
-                        setNewBusinessName("");
-                        setInviteError(null);
-                      }}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
+        <CreateTaxAccountModal
+          isOpen={showCreateTaxAccountModal}
+          onClose={() => setShowCreateTaxAccountModal(false)}
+          currentProfileId={parseInt(id)}
+          currentProfileName={profile ? `${profile.first_name} ${profile.last_name}` : ""}
+          onSuccess={() => {
+            loadTaxAccounts();
+            setLogRefreshTrigger(Date.now());
+          }}
+        />
 
         {/* Edit Profile Modal */}
         {showEditModal && (
@@ -1254,17 +1159,29 @@ export default function ProfileViewPage({
             <p className="text-gray-500 text-sm">No tax accounts found</p>
           ) : (
             <div className="space-y-3">
-              {taxAccounts.map((account) => (
+              {taxAccounts.map((account: any) => (
                 <div
                   key={account.id}
                   className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
                   onClick={() => router.push(`/tax-accounts/${account.id}`)}
                 >
                   <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="font-medium text-gray-900">
-                        {account.name}
-                      </h3>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-gray-900">
+                          {account.name}
+                        </h3>
+                        {account.is_spousal && (
+                          <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
+                            Spousal/Joint
+                          </span>
+                        )}
+                      </div>
+                      {account.is_spousal && account.spouse_profile && (
+                        <p className="text-sm text-purple-600 mt-1">
+                          Joint with: {account.spouse_profile.first_name} {account.spouse_profile.last_name}
+                        </p>
+                      )}
                       <p className="text-sm text-gray-500 mt-1">
                         Created:{" "}
                         {new Date(account.created_at).toLocaleDateString()}

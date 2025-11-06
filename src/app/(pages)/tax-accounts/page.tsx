@@ -5,6 +5,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { CreateTaxAccountModalWithProfileSelect } from "@/components/CreateTaxAccountModal";
 
 interface TaxAccount {
   id: number;
@@ -12,6 +13,8 @@ interface TaxAccount {
   account_number?: string | null;
   profile_id?: number | null;
   entity_id?: number | null;
+  is_spousal?: boolean;
+  spouse_profile_id?: number | null;
   created_at: string;
   updated_at: string;
   profile?: {
@@ -22,6 +25,12 @@ interface TaxAccount {
   entity?: {
     name: string;
     email?: string | null;
+  };
+  spouse_profile?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email: string;
   };
 }
 
@@ -83,6 +92,12 @@ export default function TaxAccountsPage() {
         ),
         entity:entity_id (
           name,
+          email
+        ),
+        spouse_profile:spouse_profile_id (
+          id,
+          first_name,
+          last_name,
           email
         )
       `
@@ -461,8 +476,15 @@ export default function TaxAccountsPage() {
                     onClick={() => router.push(`/tax-accounts/${account.id}`)}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {account.name}
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-gray-900">
+                          {account.name}
+                        </div>
+                        {account.is_spousal && (
+                          <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
+                            Spousal
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -477,6 +499,11 @@ export default function TaxAccountsPage() {
                           : account.entity
                           ? account.entity.name
                           : "N/A"}
+                        {account.is_spousal && account.spouse_profile && (
+                          <span className="text-purple-600">
+                            {" & "}{account.spouse_profile.first_name} {account.spouse_profile.last_name}
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-gray-500">
                         {account.profile?.email || account.entity?.email || ""}
@@ -504,203 +531,16 @@ export default function TaxAccountsPage() {
         </div>
 
         {/* Create Tax Account Modal */}
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    Create Tax Account
-                  </h2>
-                  <button
-                    onClick={() => {
-                      setShowCreateModal(false);
-                      resetForm();
-                      setError(null);
-                      setSuccess(null);
-                    }}
-                    className="text-gray-400 hover:text-gray-600 text-2xl"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                {error && (
-                  <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
-                    <p className="text-sm text-red-600">{error}</p>
-                  </div>
-                )}
-
-                {success && (
-                  <div className="mb-4 bg-green-50 border border-green-200 rounded-md p-4">
-                    <p className="text-sm text-green-600">{success}</p>
-                  </div>
-                )}
-
-                <form onSubmit={handleCreateTaxAccount} className="space-y-6">
-                  {/* Account Type Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Account Type *
-                    </label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          value="profile"
-                          checked={accountType === "profile"}
-                          onChange={(e) => {
-                            setAccountType(e.target.value as "profile" | "entity");
-                            setSelectedProfileId("");
-                            setSelectedEntityId("");
-                          }}
-                          className="mr-2"
-                        />
-                        <span>Profile</span>
-                      </label>
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          value="entity"
-                          checked={accountType === "entity"}
-                          onChange={(e) => {
-                            setAccountType(e.target.value as "profile" | "entity");
-                            setSelectedProfileId("");
-                            setSelectedEntityId("");
-                          }}
-                          className="mr-2"
-                        />
-                        <span>Entity</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Tax Account Name */}
-                  <div>
-                    <label
-                      htmlFor="taxAccountName"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Tax Account Name *
-                    </label>
-                    <input
-                      type="text"
-                      id="taxAccountName"
-                      value={taxAccountName}
-                      onChange={(e) => setTaxAccountName(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                      placeholder="Enter tax account name"
-                    />
-                  </div>
-
-                  {/* Business Name */}
-                  <div>
-                    <label
-                      htmlFor="businessName"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Business Name (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      id="businessName"
-                      value={businessName}
-                      onChange={(e) => setBusinessName(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Leave empty to use Tax Account Name"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      If empty, a Business Name will be created with the same
-                      name as the Tax Account
-                    </p>
-                  </div>
-
-                  {/* Profile or Entity Selection */}
-                  {accountType === "profile" ? (
-                    <div>
-                      <label
-                        htmlFor="profileSelect"
-                        className="block text-sm font-medium text-gray-700 mb-2"
-                      >
-                        Select Profile *
-                      </label>
-                      <select
-                        id="profileSelect"
-                        value={selectedProfileId}
-                        onChange={(e) => setSelectedProfileId(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      >
-                        <option value="">-- Select a Profile --</option>
-                        {profiles.map((profile) => (
-                          <option key={profile.id} value={profile.id}>
-                            {profile.first_name} {profile.last_name} (
-                            {profile.email})
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500">
-                        This tax account will be linked to the selected profile
-                      </p>
-                    </div>
-                  ) : (
-                    <div>
-                      <label
-                        htmlFor="entitySelect"
-                        className="block text-sm font-medium text-gray-700 mb-2"
-                      >
-                        Select Entity *
-                      </label>
-                      <select
-                        id="entitySelect"
-                        value={selectedEntityId}
-                        onChange={(e) => setSelectedEntityId(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      >
-                        <option value="">-- Select an Entity --</option>
-                        {entities.map((entity) => (
-                          <option key={entity.id} value={entity.id}>
-                            {entity.name} {entity.email ? `(${entity.email})` : ""}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500">
-                        This tax account will be linked to the selected entity
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Buttons */}
-                  <div className="flex gap-3 pt-4">
-                    <Button
-                      type="submit"
-                      disabled={creating}
-                      variant="primary"
-                      className="flex-1"
-                    >
-                      {creating ? "Creating..." : "Create Tax Account"}
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        setShowCreateModal(false);
-                        resetForm();
-                        setError(null);
-                        setSuccess(null);
-                      }}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
+        <CreateTaxAccountModalWithProfileSelect
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          profiles={profiles}
+          onSuccess={() => {
+            loadTaxAccounts();
+            setSuccess("Tax Account created successfully!");
+            setTimeout(() => setSuccess(null), 3000);
+          }}
+        />
       </div>
     </div>
   );
