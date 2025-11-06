@@ -10,6 +10,7 @@ interface AccountingTableProps {
   transactionId?: number; // Optional - if not provided, shows all entries for exchange
   exchangeId?: number; // If provided, filter entries for this exchange
   taxAccountId?: number; // Tax account ID of exchange owner (for fees)
+  eatParkedFileId?: number; // If provided, filter entries for this EAT Parked File
   onEntryChange?: () => void;
 }
 
@@ -17,6 +18,7 @@ export default function AccountingTable({
   transactionId,
   exchangeId,
   taxAccountId,
+  eatParkedFileId,
   onEntryChange,
 }: AccountingTableProps) {
   const supabase = getSupabaseClient();
@@ -60,17 +62,26 @@ export default function AccountingTable({
         );
       }
 
+      // If eatParkedFileId provided, filter by eat_parked_file_id
+      if (eatParkedFileId) {
+        query = query.eq("eat_parked_file_id", eatParkedFileId);
+      }
+
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error("Accounting entries query error:", error, "Details:", JSON.stringify(error, null, 2));
+        throw error;
+      }
       setEntries((data || []) as AccountingEntry[]);
+      setError(null);
     } catch (err) {
       console.error("Failed to load accounting entries:", err);
       setError(err instanceof Error ? err.message : "Failed to load entries");
     } finally {
       setLoading(false);
     }
-  }, [transactionId, exchangeId, supabase]);
+  }, [transactionId, exchangeId, eatParkedFileId, supabase]);
 
   useEffect(() => {
     loadEntries();

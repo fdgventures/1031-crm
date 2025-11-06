@@ -2,7 +2,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import type { EATLLC, EATLLCWithAccess, CreateEATLLCData, USState } from "@/types/eat.types";
 
 /**
- * Получает список всех штатов США для dropdowns
+ * Gets list of all US states for dropdowns
  */
 export async function getUSStates(): Promise<USState[]> {
   const supabase = getSupabaseClient();
@@ -21,7 +21,7 @@ export async function getUSStates(): Promise<USState[]> {
 }
 
 /**
- * Получает популярные штаты для LLC формирования
+ * Gets popular states for LLC formation
  */
 export async function getPopularLLCStates(): Promise<USState[]> {
   const supabase = getSupabaseClient();
@@ -41,7 +41,7 @@ export async function getPopularLLCStates(): Promise<USState[]> {
 }
 
 /**
- * Создает новый EAT LLC
+ * Creates new EAT LLC
  */
 export async function createEATLLC(
   eatData: CreateEATLLCData
@@ -49,13 +49,13 @@ export async function createEATLLC(
   const supabase = getSupabaseClient();
 
   try {
-    // 1. Генерируем EAT number
+    // 1. Generate EAT number
     const { data: eatNumber, error: numberError } = await supabase
       .rpc("generate_eat_number", { state_code: eatData.state_formation });
 
     if (numberError) throw numberError;
 
-    // 2. Создаем EAT LLC
+    // 2. Create EAT LLC
     const { data: eatLlc, error: eatError } = await supabase
       .from("eat_llcs")
       .insert({
@@ -75,7 +75,7 @@ export async function createEATLLC(
 
     if (eatError) throw eatError;
 
-    // 3. Добавляем user profile access если указаны
+    // 3. Add user profile access if specified
     if (eatData.user_profile_ids && eatData.user_profile_ids.length > 0) {
       const accessRecords = eatData.user_profile_ids.map(userProfileId => ({
         eat_llc_id: eatLlc.id,
@@ -107,7 +107,7 @@ export async function createEATLLC(
 }
 
 /**
- * Получает все EAT LLCs
+ * Gets all EAT LLCs
  */
 export async function getAllEATLLCs(): Promise<EATLLCWithAccess[]> {
   const supabase = getSupabaseClient();
@@ -139,7 +139,7 @@ export async function getAllEATLLCs(): Promise<EATLLCWithAccess[]> {
 }
 
 /**
- * Получает конкретный EAT LLC с профилями доступа
+ * Gets specific EAT LLC with access profiles
  */
 export async function getEATLLC(id: number): Promise<EATLLCWithAccess | null> {
   const supabase = getSupabaseClient();
@@ -172,7 +172,7 @@ export async function getEATLLC(id: number): Promise<EATLLCWithAccess | null> {
 }
 
 /**
- * Обновляет EAT LLC
+ * Updates EAT LLC
  */
 export async function updateEATLLC(
   id: number,
@@ -194,7 +194,7 @@ export async function updateEATLLC(
 }
 
 /**
- * Добавляет user profile access к EAT LLC
+ * Adds user profile access to EAT LLC
  */
 export async function addProfileAccess(
   eatLlcId: number,
@@ -220,7 +220,7 @@ export async function addProfileAccess(
 }
 
 /**
- * Удаляет user profile access
+ * Removes user profile access
  */
 export async function removeProfileAccess(
   eatLlcId: number,
@@ -243,7 +243,7 @@ export async function removeProfileAccess(
 }
 
 /**
- * Получает EAT LLCs где user profile имеет доступ
+ * Gets EAT LLCs where user profile has access
  */
 export async function getEATLLCsForUserProfile(userProfileId: string): Promise<EATLLCWithAccess[]> {
   const supabase = getSupabaseClient();
