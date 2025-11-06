@@ -12,6 +12,7 @@ import { MessagingSystem } from "@/components/MessagingSystem";
 import { FeeSchedule } from "@/components/FeeSchedule";
 import { YearToDateReview } from "@/components/YearToDateReview";
 import { TaxAccountTransactions } from "@/components/TaxAccountTransactions";
+import { TaxAccountExchanges } from "@/components/TaxAccountExchanges";
 
 interface TaxAccount {
   id: number;
@@ -1056,6 +1057,11 @@ export default function TaxAccountViewPage({
         {/* Transactions Section */}
         <div className="mt-6">
           <TaxAccountTransactions taxAccountId={numericId} />
+        </div>
+
+        {/* Exchanges Section */}
+        <div className="mt-6">
+          <TaxAccountExchanges taxAccountId={numericId} />
         </div>
 
         {/* Document Repository Section */}
