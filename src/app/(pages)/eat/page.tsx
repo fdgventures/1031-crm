@@ -15,7 +15,7 @@ export default function EATPage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">EAT</h1>
 
           <div className="text-gray-600">
-            <p>EAT list will be here</p>
+            <p>EAT database will be here (different from EAT LLCs)</p>
             <p className="mt-2 text-sm">Page under development...</p>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { FeeScheduleManager } from "@/components/FeeScheduleManager";
+import { EATLLCManager } from "@/components/EATLLCManager";
 
 type AuthUser = {
   id: string;
@@ -192,6 +193,11 @@ export default function AdminDashboard() {
         {/* Fee Schedule Manager Section */}
         <div className="mt-8">
           <FeeScheduleManager />
+        </div>
+
+        {/* EAT LLC Manager Section */}
+        <div className="mt-8">
+          <EATLLCManager />
         </div>
       </div>
     </div>
