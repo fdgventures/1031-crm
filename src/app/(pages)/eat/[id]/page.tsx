@@ -107,7 +107,7 @@ export default function EATViewPage({ params }: { params: Promise<{ id: string }
       licensed_in: editValues.licensed_in || null,
       ein: editValues.ein || null,
       status: editValues.status,
-    } as any);
+    });
 
     if (success) {
       await loadEAT();
@@ -313,7 +313,7 @@ export default function EATViewPage({ params }: { params: Promise<{ id: string }
                 {isEditing ? (
                   <select
                     value={editValues.status}
-                    onChange={(e) => setEditValues({ ...editValues, status: e.target.value as any })}
+                    onChange={(e) => setEditValues({ ...editValues, status: e.target.value as "Active" | "Inactive" | "Dissolved" })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   >
                     <option value="Active">Active</option>
@@ -350,7 +350,7 @@ export default function EATViewPage({ params }: { params: Promise<{ id: string }
               <p className="text-gray-500 text-sm">No admins have access yet</p>
             ) : (
               <div className="space-y-3">
-                {eat.profile_accesses.map((access: any) => (
+                {eat.profile_accesses.map((access) => (
                   <div
                     key={access.id}
                     className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"

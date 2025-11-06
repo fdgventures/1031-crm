@@ -105,8 +105,8 @@ export async function loadTaxAccountTransactions(
     }
 
     const transactionIds = (exchangeTransactions || [])
-      .map(et => (et.transaction as any)?.id)
-      .filter(Boolean);
+      .map(et => (et.transaction as unknown as {id: number} | null)?.id)
+      .filter(Boolean) as number[];
 
     if (transactionIds.length === 0) {
       return getEmptyGroups();
@@ -157,11 +157,44 @@ export async function loadTaxAccountTransactions(
         .in("transaction_id", transactionIds)
     ]);
 
+    interface SellerData {
+      id: number;
+      transaction_id: number;
+      vesting_name?: string | null;
+      non_exchange_name?: string | null;
+      contract_percent?: number | null;
+      tax_account?: {id: number; name: string}[] | {id: number; name: string} | null;
+    }
+    
+    interface BuyerData {
+      id: number;
+      transaction_id: number;
+      non_exchange_name?: string | null;
+      contract_percent?: number | null;
+      profile?: {id: number; first_name: string; last_name: string}[] | {id: number; first_name: string; last_name: string} | null;
+    }
+    
+    interface PropertyData {
+      id: number;
+      address: string;
+      transaction_id: number;
+    }
+    
+    interface SettlementData {
+      transaction_id: number;
+      balance?: number | null;
+      closing_cost?: number | null;
+      debt_payoff?: number | null;
+      funds_to_exchange?: number | null;
+      funds_to_exchanger?: number | null;
+      sale_price?: number | null;
+    }
+
     // 4. Создаем Map для быстрого доступа
-    const sellersMap = new Map<number, any[]>();
-    const buyersMap = new Map<number, any[]>();
-    const propertiesMap = new Map<number, any>();
-    const settlementsMap = new Map<number, any[]>();
+    const sellersMap = new Map<number, SellerData[]>();
+    const buyersMap = new Map<number, BuyerData[]>();
+    const propertiesMap = new Map<number, PropertyData>();
+    const settlementsMap = new Map<number, SettlementData[]>();
 
     (sellersResult.data || []).forEach(seller => {
       if (!sellersMap.has(seller.transaction_id)) {
@@ -210,29 +243,48 @@ export async function loadTaxAccountTransactions(
 
     // 6. Обрабатываем каждую транзакцию
     (exchangeTransactions || []).forEach(et => {
-      const transaction = et.transaction as any;
+      const transaction = et.transaction as unknown as {
+        id: number;
+        transaction_number: string;
+        contract_purchase_price: number;
+        contract_date: string;
+        actual_close_date?: string | null;
+        estimated_close_date?: string | null;
+        status?: string | null;
+        sale_type: "Property" | "Entity";
+      } | null;
       if (!transaction) return;
 
       const sellers = (sellersMap.get(transaction.id) || []).map(s => ({
         id: s.id,
-        name: s.vesting_name || s.non_exchange_name || s.tax_account?.name || "Unknown",
+        name: s.vesting_name || s.non_exchange_name || 
+              (Array.isArray(s.tax_account) ? s.tax_account[0]?.name : s.tax_account?.name) || "Unknown",
         percent: s.contract_percent || 0,
       }));
 
-      const buyers = (buyersMap.get(transaction.id) || []).map(b => ({
-        id: b.id,
-        name: b.non_exchange_name || 
-              (b.profile ? `${b.profile.first_name} ${b.profile.last_name}` : "Unknown"),
-        percent: b.contract_percent || 0,
-      }));
+      const buyers = (buyersMap.get(transaction.id) || []).map(b => {
+        let profileName = "Unknown";
+        if (b.profile) {
+          if (Array.isArray(b.profile)) {
+            profileName = b.profile[0] ? `${b.profile[0].first_name} ${b.profile[0].last_name}` : "Unknown";
+          } else {
+            profileName = `${b.profile.first_name} ${b.profile.last_name}`;
+          }
+        }
+        return {
+          id: b.id,
+          name: b.non_exchange_name || profileName,
+          percent: b.contract_percent || 0,
+        };
+      });
 
       const property = propertiesMap.get(transaction.id);
       const settlements = settlementsMap.get(transaction.id) || [];
       
       // Агрегируем settlement данные
-      const totalFundsToExchange = settlements.reduce((sum: number, s: any) => 
+      const totalFundsToExchange = settlements.reduce((sum: number, s) => 
         sum + (s.funds_to_exchange || 0), 0);
-      const totalSalesPrice = settlements.reduce((sum: number, s: any) => 
+      const totalSalesPrice = settlements.reduce((sum: number, s) => 
         sum + (s.sale_price || 0), 0);
 
       const txData: TaxAccountTransaction = {

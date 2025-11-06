@@ -30,7 +30,7 @@ export default function IdentifiedPropertiesTable({
     setExpandedRows(newExpanded);
   };
 
-  const handleUpdateField = async (propertyId: number, field: string, value: any) => {
+  const handleUpdateField = async (propertyId: number, field: string, value: string | number | boolean | null) => {
     try {
       const { error } = await supabase
         .from("identified_properties")

@@ -28,7 +28,7 @@ export default function AddPropertyModal({
   
   // Property search/create
   const [propertySearch, setPropertySearch] = useState("");
-  const [availableProperties, setAvailableProperties] = useState<any[]>([]);
+  const [availableProperties, setAvailableProperties] = useState<{id: number; address: string}[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
   const [showCreateProperty, setShowCreateProperty] = useState(false);
   const [newPropertyAddress, setNewPropertyAddress] = useState("");
@@ -130,7 +130,18 @@ export default function AddPropertyModal({
       }
 
       // Create identified property
-      const insertData: any = {
+      const insertData: {
+        exchange_id: number;
+        identification_type: IdentificationType;
+        property_type: PropertyType;
+        description: string | null;
+        value: number | null;
+        percentage: number | null;
+        is_parked: boolean;
+        document_storage_path: string | null;
+        identification_date: string;
+        property_id?: number;
+      } = {
         exchange_id: exchangeId,
         identification_type: identificationType,
         property_type: propertyType,

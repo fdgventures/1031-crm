@@ -579,7 +579,7 @@ export default function TransactionsPage() {
     setBuyers((prevBuyers) => prevBuyers.filter((b) => b.id !== id));
   };
 
-  const updateBuyer = (id: string, field: keyof TransactionBuyer, value: any) => {
+  const updateBuyer = (id: string, field: keyof TransactionBuyer, value: string | number | number[] | boolean | null) => {
     console.log('🔧 Updating buyer:', id, 'field:', field, 'value:', value);
     setBuyers((prevBuyers) =>
       prevBuyers.map((b) => {
@@ -992,7 +992,14 @@ export default function TransactionsPage() {
           const isNonExchangeSeller = seller.is_non_exchange || 
             (seller.non_exchange_name && seller.non_exchange_name.trim() !== "" && !seller.tax_account_id);
 
-          const ownershipData: any = {
+          const ownershipData: {
+            property_id: number;
+            ownership_type: "current";
+            transaction_id: number;
+            non_exchange_name?: string;
+            tax_account_id?: number;
+            vesting_name?: string;
+          } = {
             property_id: newProperty.id,
             ownership_type: "current",
             transaction_id: transaction.id,

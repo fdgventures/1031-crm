@@ -50,7 +50,16 @@ export function WireInstructionModal({
       }
 
       // Create wire instruction
-      const wireData: any = {
+      const wireData: {
+        transaction_id: number;
+        who_called: string | null;
+        who_spoke_to: string | null;
+        date_writing_instructions: string | null;
+        user_id: number | null;
+        file_path: string | null;
+        settlement_seller_id?: string;
+        settlement_buyer_id?: string;
+      } = {
         transaction_id: parseInt(transactionId),
         who_called: whoCalled || null,
         who_spoke_to: whoSpokeTo || null,

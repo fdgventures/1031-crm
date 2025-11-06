@@ -45,7 +45,7 @@ export interface Message {
   parent_message_id: number | null;
   created_task_id: number | null;
   is_system_message: boolean;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   created_by: string;
@@ -104,7 +104,7 @@ export interface MessageInsert {
   content: string;
   parent_message_id?: number | null;
   is_system_message?: boolean;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_by: string;
 }
 

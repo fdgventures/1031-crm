@@ -173,7 +173,7 @@ export default function FeeSchedule({
 
       // Transform data and get user emails
       const historyWithEmails = await Promise.all(
-        (historyData || []).map(async (item: any) => {
+        (historyData || []).map(async (item: Omit<FeeChangeHistory, 'user_email'>) => {
           let userEmail = "Unknown";
           
           if (item.changed_by) {

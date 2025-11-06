@@ -11,10 +11,22 @@ import {
 import { WireInstructionModal } from "./WireInstructionModal";
 import { AccountingTable } from "@/components/AccountingTable";
 
+interface TransactionSeller {
+  id: number;
+  non_exchange_name?: string | null;
+  tax_account_id?: number | null;
+}
+
+interface TransactionBuyer {
+  id: number;
+  non_exchange_name?: string | null;
+  profile_id?: number | null;
+}
+
 interface FinalSettlementStatementProps {
   transactionId: string;
-  sellers: any[];
-  buyers: any[];
+  sellers: TransactionSeller[];
+  buyers: TransactionBuyer[];
 }
 
 export function FinalSettlementStatement({
@@ -35,7 +47,7 @@ export function FinalSettlementStatement({
   const [loading, setLoading] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
   const [showDocumentPicker, setShowDocumentPicker] = useState(false);
-  const [availableDocuments, setAvailableDocuments] = useState<any[]>([]);
+  const [availableDocuments, setAvailableDocuments] = useState<{id: number; name: string; storage_path: string}[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedWireInstructionEntity, setSelectedWireInstructionEntity] =
     useState<{
@@ -88,7 +100,7 @@ export function FinalSettlementStatement({
         .eq("transaction_id", transactionId);
 
       if (sellersError) throw sellersError;
-      setSettlementSellers((sellersData as any) || []);
+      setSettlementSellers((sellersData as SettlementSeller[]) || []);
 
       // Load settlement buyers
       const { data: buyersData, error: buyersError } = await supabase
@@ -113,7 +125,7 @@ export function FinalSettlementStatement({
         .eq("transaction_id", transactionId);
 
       if (buyersError) throw buyersError;
-      setSettlementBuyers((buyersData as any) || []);
+      setSettlementBuyers((buyersData as SettlementBuyer[]) || []);
     } catch (error) {
       console.error("Error loading settlement data:", error);
     } finally {
@@ -323,7 +335,7 @@ export function FinalSettlementStatement({
     }
   };
 
-  const selectDocumentFromRepository = async (document: any) => {
+  const selectDocumentFromRepository = async (document: {id: number; name: string; storage_path: string}) => {
     await setFinalSettlementFile(document.storage_path);
     setShowDocumentPicker(false);
   };
@@ -419,7 +431,7 @@ export function FinalSettlementStatement({
   const updateSettlementSeller = async (
     id: string,
     field: string,
-    value: any
+    value: number | null
   ) => {
     try {
       const { error } = await supabase
@@ -437,7 +449,7 @@ export function FinalSettlementStatement({
   const updateSettlementBuyer = async (
     id: string,
     field: string,
-    value: any
+    value: number | null
   ) => {
     try {
       const { error } = await supabase
@@ -570,7 +582,7 @@ export function FinalSettlementStatement({
               {/* Sellers */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900">Sellers</h3>
-                {settlementSellers.map((seller: any) => (
+                {settlementSellers.map((seller) => (
                   <SettlementSellerCard
                     key={seller.id}
                     seller={seller}
@@ -590,7 +602,7 @@ export function FinalSettlementStatement({
               {/* Buyers */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900">Buyers</h3>
-                {settlementBuyers.map((buyer: any) => (
+                {settlementBuyers.map((buyer) => (
                   <SettlementBuyerCard
                     key={buyer.id}
                     buyer={buyer}
@@ -638,8 +650,8 @@ export function FinalSettlementStatement({
 }
 
 interface SettlementSellerCardProps {
-  seller: any;
-  onUpdate: (id: string, field: string, value: any) => void;
+  seller: SettlementSeller;
+  onUpdate: (id: string, field: string, value: number | null) => void;
   onWireInstructions: () => void;
   onApplyFundsToExchange: (id: string, value: number) => void;
 }
@@ -650,7 +662,7 @@ function SettlementSellerCard({
   onWireInstructions,
   onApplyFundsToExchange,
 }: SettlementSellerCardProps) {
-  const [fundsToExchange, setFundsToExchange] = React.useState(seller.funds_to_exchange || "");
+  const [fundsToExchange, setFundsToExchange] = React.useState(seller.funds_to_exchange?.toString() || "");
   const [isSaving, setIsSaving] = React.useState(false);
   
   const businessNames = seller.tax_seller?.business_names || [];
@@ -658,7 +670,7 @@ function SettlementSellerCard({
 
   // Update local state when seller prop changes
   React.useEffect(() => {
-    setFundsToExchange(seller.funds_to_exchange || "");
+    setFundsToExchange(seller.funds_to_exchange?.toString() || "");
   }, [seller.funds_to_exchange]);
 
   const handleApplyFunds = async () => {
@@ -778,8 +790,8 @@ function SettlementSellerCard({
 }
 
 interface SettlementBuyerCardProps {
-  buyer: any;
-  onUpdate: (id: string, field: string, value: any) => void;
+  buyer: SettlementBuyer;
+  onUpdate: (id: string, field: string, value: number | null) => void;
   onWireInstructions: () => void;
 }
 

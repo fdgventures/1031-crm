@@ -80,12 +80,20 @@ export async function loadTaxAccountExchanges(
     ]);
 
     // 3. Создаем Maps для быстрого доступа
-    const accountingMap = new Map<number, any[]>();
+    interface AccountingEntry {
+      credit: number;
+      debit: number;
+      from_exchange_id: number | null;
+      to_exchange_id: number | null;
+      entry_type: string;
+      direction: 'credit' | 'debit';
+    }
+    const accountingMap = new Map<number, AccountingEntry[]>();
     const transactionsMap = new Map<number, { sales: number; purchases: number }>();
     const propertiesMap = new Map<number, number>();
 
     // Accounting entries
-    (accountingEntriesResult.data || []).forEach((entry: any) => {
+    (accountingEntriesResult.data || []).forEach((entry) => {
       // Credits (к exchange)
       if (entry.to_exchange_id && exchangeIds.includes(entry.to_exchange_id)) {
         if (!accountingMap.has(entry.to_exchange_id)) {
@@ -103,7 +111,7 @@ export async function loadTaxAccountExchanges(
     });
 
     // Exchange transactions counts
-    (exchangeTransactionsResult.data || []).forEach((et: any) => {
+    (exchangeTransactionsResult.data || []).forEach((et: {exchange_id: number; transaction_type: string}) => {
       if (!transactionsMap.has(et.exchange_id)) {
         transactionsMap.set(et.exchange_id, { sales: 0, purchases: 0 });
       }
@@ -116,7 +124,7 @@ export async function loadTaxAccountExchanges(
     });
 
     // Identified properties counts
-    (identifiedPropertiesResult.data || []).forEach((prop: any) => {
+    (identifiedPropertiesResult.data || []).forEach((prop: {exchange_id: number}) => {
       propertiesMap.set(
         prop.exchange_id,
         (propertiesMap.get(prop.exchange_id) || 0) + 1

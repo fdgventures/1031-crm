@@ -59,23 +59,21 @@ export default function HeaderUser() {
 
         if (user) {
           // Делаем оба запроса ПАРАЛЛЕЛЬНО для ускорения
+          const userProfileQuery = supabase
+            .from("user_profiles")
+            .select("role_type")
+            .eq("id", user.id)
+            .single();
+          
+          const profileDataQuery = supabase
+            .from("profile")
+            .select("id, avatar_url")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          
           const [userProfileResult, profileDataResult] = await Promise.allSettled([
-            withTimeout(
-              supabase
-                .from("user_profiles")
-                .select("role_type")
-                .eq("id", user.id)
-                .single(),
-              3000
-            ),
-            withTimeout(
-              supabase
-                .from("profile")
-                .select("id, avatar_url")
-                .eq("user_id", user.id)
-                .maybeSingle(),
-              3000
-            ),
+            withTimeout(userProfileQuery as unknown as Promise<typeof userProfileQuery>, 3000),
+            withTimeout(profileDataQuery as unknown as Promise<typeof profileDataQuery>, 3000),
           ]);
 
           // Process user role
@@ -131,23 +129,21 @@ export default function HeaderUser() {
 
         if (session?.user) {
           // Делаем оба запроса ПАРАЛЛЕЛЬНО
+          const userProfileQuery2 = supabase
+            .from("user_profiles")
+            .select("role_type")
+            .eq("id", session.user.id)
+            .single();
+          
+          const profileDataQuery2 = supabase
+            .from("profile")
+            .select("id, avatar_url")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+          
           const [userProfileResult, profileDataResult] = await Promise.allSettled([
-            withTimeout(
-              supabase
-                .from("user_profiles")
-                .select("role_type")
-                .eq("id", session.user.id)
-                .single(),
-              3000
-            ),
-            withTimeout(
-              supabase
-                .from("profile")
-                .select("id, avatar_url")
-                .eq("user_id", session.user.id)
-                .maybeSingle(),
-              3000
-            ),
+            withTimeout(userProfileQuery2 as unknown as Promise<typeof userProfileQuery2>, 3000),
+            withTimeout(profileDataQuery2 as unknown as Promise<typeof profileDataQuery2>, 3000),
           ]);
 
           // Process user role

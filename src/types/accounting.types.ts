@@ -21,7 +21,7 @@ export interface AccountingEntry {
   settlement_seller_id: string | null;
   settlement_buyer_id: string | null;
   settlement_type: 'seller' | 'buyer' | null;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -59,7 +59,7 @@ export interface AccountingEntryInsert {
   settlement_seller_id?: string | null;
   settlement_buyer_id?: string | null;
   settlement_type?: 'seller' | 'buyer' | null;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_by?: string | null;
 }
 

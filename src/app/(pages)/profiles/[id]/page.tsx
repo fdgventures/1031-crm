@@ -37,6 +37,11 @@ interface TaxAccount {
   id: number;
   name: string;
   created_at: string;
+  is_spousal?: boolean;
+  spouse_profile?: {
+    first_name: string;
+    last_name: string;
+  };
 }
 
 interface Property {
@@ -1159,7 +1164,7 @@ export default function ProfileViewPage({
             <p className="text-gray-500 text-sm">No tax accounts found</p>
           ) : (
             <div className="space-y-3">
-              {taxAccounts.map((account: any) => (
+              {taxAccounts.map((account) => (
                 <div
                   key={account.id}
                   className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer"

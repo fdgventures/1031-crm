@@ -13,6 +13,18 @@ export interface SettlementSeller {
   date_writing_instructions: string | null;
   created_at: string;
   updated_at: string;
+  
+  // Relations
+  tax_seller?: {
+    name: string;
+    business_names?: {
+      name: string;
+    }[];
+  };
+  current_exchange?: {
+    id: number;
+    exchange_number: string;
+  };
 }
 
 export interface SettlementBuyer {
@@ -30,6 +42,18 @@ export interface SettlementBuyer {
   sale_price: number | null;
   created_at: string;
   updated_at: string;
+  
+  // Relations
+  tax_buyer?: {
+    name: string;
+    business_names?: {
+      name: string;
+    }[];
+  };
+  selected_exchange?: {
+    id: number;
+    exchange_number: string;
+  };
 }
 
 export interface WireInstruction {

@@ -273,6 +273,14 @@ export async function getEATLLCsForUserProfile(userProfileId: string): Promise<E
     return [];
   }
 
-  return (data || []).map((item: any) => item.eat_llc).filter(Boolean);
+  return (data || [])
+    .map((item: { access_type: string; eat_llc: EATLLCWithAccess | EATLLCWithAccess[] }) => {
+      // Handle if eat_llc is an array (from JOIN)
+      if (Array.isArray(item.eat_llc)) {
+        return item.eat_llc[0];
+      }
+      return item.eat_llc;
+    })
+    .filter((llc): llc is EATLLCWithAccess => Boolean(llc));
 }
 

@@ -156,7 +156,7 @@ export default function EATLLCManager() {
                       <div className="flex flex-wrap gap-1">
                         {eat.profile_accesses && eat.profile_accesses.length > 0 ? (
                           <>
-                            {eat.profile_accesses.slice(0, 2).map((access: any) => (
+                            {eat.profile_accesses.slice(0, 2).map((access) => (
                               <span
                                 key={access.id}
                                 className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"

@@ -24,7 +24,7 @@ export interface IdentifiedProperty {
   identification_date: string;
   is_parked: boolean;
   document_storage_path?: string | null;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   created_by?: string | null;
@@ -49,7 +49,7 @@ export interface IdentifiedPropertyInsert {
   identification_date?: string;
   is_parked?: boolean;
   document_storage_path?: string | null;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface PropertyImprovementInsert {
