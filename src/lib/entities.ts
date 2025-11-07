@@ -307,13 +307,21 @@ export async function getEntityProperties(entityId: number) {
   }
 
   // Extract unique properties
+  interface PropertyOwnershipQueryResult {
+    property?: unknown;
+    transaction?: unknown;
+  }
+  
   const uniqueProperties = new Map();
-  data?.forEach((item: any) => {
-    const prop = Array.isArray(item.property) ? item.property[0] : item.property;
-    if (prop && prop.id) {
-      uniqueProperties.set(prop.id, {
+  (data as PropertyOwnershipQueryResult[])?.forEach((item) => {
+    const property = item.property;
+    const prop = Array.isArray(property) ? property[0] : property;
+    if (prop && typeof prop === 'object' && 'id' in prop && 'address' in prop) {
+      const transaction = item.transaction;
+      const trans = Array.isArray(transaction) ? transaction[0] : transaction;
+      uniqueProperties.set((prop as { id: number }).id, {
         ...prop,
-        transaction: item.transaction,
+        transaction: trans,
       });
     }
   });

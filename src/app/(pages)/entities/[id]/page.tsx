@@ -33,9 +33,9 @@ export default function EntityProfilePage({
   const supabase = getSupabaseClient();
 
   const [entity, setEntity] = useState<EntityWithAccess | null>(null);
-  const [taxAccounts, setTaxAccounts] = useState<any[]>([]);
-  const [properties, setProperties] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [taxAccounts, setTaxAccounts] = useState<Array<{ id: number; name: string; account_number: string | null }>>([]);
+  const [properties, setProperties] = useState<Array<{ id: number; address: string; city?: string; state?: string; zip?: string; transaction?: { id: number; transaction_number: string; contract_purchase_price?: number; status?: string } }>>([]);
+  const [transactions, setTransactions] = useState<Array<{ id: number; transaction_number: string; contract_purchase_price?: number; sale_type?: string; status?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [logRefreshTrigger, setLogRefreshTrigger] = useState(0);
 
@@ -64,7 +64,7 @@ export default function EntityProfilePage({
   const [isMainContact, setIsMainContact] = useState(false);
 
   // Available tax accounts
-  const [availableTaxAccounts, setAvailableTaxAccounts] = useState<any[]>([]);
+  const [availableTaxAccounts, setAvailableTaxAccounts] = useState<Array<{ id: number; name: string; account_number: string | null; profile?: { id: string; first_name: string; last_name: string; email: string | null } }>>([]);
 
   useEffect(() => {
     document.title = `Entity Profile | 1031 Exchange CRM`;
@@ -118,7 +118,20 @@ export default function EntityProfilePage({
       )
       .order("name");
 
-    setAvailableTaxAccounts(data || []);
+    // Transform the data to match expected type
+    const transformedData = (data || []).map((ta: {
+      id: number;
+      name: string;
+      account_number: string | null;
+      profile: Array<{ id: string; first_name: string; last_name: string; email: string | null }> | { id: string; first_name: string; last_name: string; email: string | null } | null;
+    }) => ({
+      id: ta.id,
+      name: ta.name,
+      account_number: ta.account_number,
+      profile: Array.isArray(ta.profile) ? ta.profile[0] : ta.profile || undefined,
+    }));
+
+    setAvailableTaxAccounts(transformedData);
   }, [supabase]);
 
   useEffect(() => {
@@ -507,7 +520,7 @@ export default function EntityProfilePage({
               <p className="text-gray-500 text-sm">No properties owned</p>
             ) : (
               <div className="space-y-3">
-                {properties.map((prop: any) => (
+                {properties.map((prop) => (
                   <div
                     key={prop.id}
                     className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
@@ -553,7 +566,7 @@ export default function EntityProfilePage({
               <p className="text-gray-500 text-sm">No transactions yet</p>
             ) : (
               <div className="space-y-3">
-                {transactions.map((tx: any) => (
+                {transactions.map((tx) => (
                   <div
                     key={tx.id}
                     className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
@@ -667,7 +680,7 @@ export default function EntityProfilePage({
                     value={selectedRelationship}
                     onChange={(e) =>
                       setSelectedRelationship(
-                        e.target.value as any
+                        e.target.value as "Manager" | "Trustee" | "Owner/Member" | "Managing Member" | "Beneficiary"
                       )
                     }
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"

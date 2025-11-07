@@ -12,6 +12,7 @@ import {
   type EATIdentifiedProperty,
 } from "@/lib/eat-identified-properties";
 import { calculateExchangeRule } from "@/lib/exchange-rules";
+import { type IdentifiedProperty } from "@/types/identified-property.types";
 import ExchangeRuleIndicator from "../PropertyIdentification/ExchangeRuleIndicator";
 import EATAddPropertyModal from "./EATAddPropertyModal";
 
@@ -223,8 +224,8 @@ export default function EATPropertyIdentification({
   };
 
   // Calculate rule status for all properties combined
-  const allProperties = [...writtenFormProperties, ...contractProperties] as any[];
-  const ruleStatus = calculateExchangeRule(allProperties, totalSalePropertyValue);
+  const allProperties = [...writtenFormProperties, ...contractProperties];
+  const ruleStatus = calculateExchangeRule(allProperties as unknown as IdentifiedProperty[], totalSalePropertyValue);
 
   if (loading) {
     return (

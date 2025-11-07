@@ -312,7 +312,7 @@ export default function EATInvoiceModal({
 
               {items.length === 0 ? (
                 <p className="text-gray-500 text-sm text-center py-4">
-                  No items added yet. Click "Add Item" to add invoice items.
+                  No items added yet. Click &quot;Add Item&quot; to add invoice items.
                 </p>
               ) : (
                 <div className="space-y-3">

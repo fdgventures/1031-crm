@@ -342,7 +342,7 @@ export async function getEATAcquisitionProperties(
   // Extract unique properties
   const uniqueProperties = new Map<number, { id: number; address: string }>();
   
-  properties?.forEach((item: any) => {
+  properties?.forEach((item: { property?: { id: number; address: string } | Array<{ id: number; address: string }> }) => {
     if (item.property) {
       const prop = Array.isArray(item.property) ? item.property[0] : item.property;
       if (prop && prop.id) {

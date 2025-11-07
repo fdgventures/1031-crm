@@ -129,7 +129,14 @@ export async function getEATParkedFile(
   }
 
   // Transform array responses to single objects for one-to-one relationships
-  const result = data as any;
+  interface QueryResult {
+    eat_secretary_of_state?: unknown[] | unknown;
+    eat_lenders?: unknown[] | unknown;
+    secretary_of_state?: unknown;
+    lender?: unknown;
+  }
+  
+  const result = data as QueryResult & Record<string, unknown>;
   if (result) {
     // eat_secretary_of_state and eat_lenders are arrays, get first element
     if (result.eat_secretary_of_state) {
@@ -146,7 +153,7 @@ export async function getEATParkedFile(
     }
   }
 
-  return result as EATParkedFileWithRelations;
+  return result as unknown as EATParkedFileWithRelations;
 }
 
 /**
