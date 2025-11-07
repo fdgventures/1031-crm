@@ -11,6 +11,7 @@ import { TaskManager } from "@/components/TaskManager";
 import { LogViewer } from "@/components/LogViewer";
 import { FinalSettlementStatement } from "@/components/FinalSettlementStatement";
 import { MessagingSystem } from "@/components/MessagingSystem";
+import TransactionDocuments from "@/components/TransactionDocuments";
 
 interface Transaction {
   id: number;
@@ -741,6 +742,19 @@ export default function TransactionViewPage({
             </div>
           </div>
         )}
+
+        {/* Document Templates */}
+        <div className="mt-6">
+          <TransactionDocuments
+            transactionId={parseInt(id)}
+            transactionData={{
+              ...transaction,
+              sellers,
+              buyers,
+              properties,
+            }}
+          />
+        </div>
 
         <div className="mt-6">
           <DocumentRepository entityType="transaction" entityId={id} />

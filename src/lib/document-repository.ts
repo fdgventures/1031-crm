@@ -218,7 +218,7 @@ export const deleteFolder = async (folderId: string) => {
 
 export const uploadFileToFolder = async (
   repositoryId: string,
-  folderId: string,
+  folderId: string | null,
   file: File
 ) => {
   const supabase = ensureSupabaseClient();
